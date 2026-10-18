@@ -1,0 +1,41 @@
+/* Realistic scene themes (Window, Fireplace, Café, Aquarium, Cabin): the room is the star, so
+   the widgets get compact and sit on dark see-through panels. No backdrop blur here: blurring
+   over playing video is expensive on the projector. */
+.screen:not(.theme-aurora) .top { text-shadow:0 2px 10px rgba(0,0,0,.8); }
+.screen:not(.theme-aurora) .pill { background:rgba(8,8,12,.55); }
+.screen:not(.theme-aurora) .pill.focus { background:#fff; }
+
+.screen:not(.theme-aurora) .clock { top:130px; left:60px; padding:18px 30px 22px; border-radius:26px; background:rgba(8,8,12,.55); }
+.screen:not(.theme-aurora) .clock .t { font-size:110px; letter-spacing:-3px; }
+.screen:not(.theme-aurora) .clock .t .ampm { font-size:32px; margin-left:10px; }
+.screen:not(.theme-aurora) .clock .d { font-size:26px; margin-top:8px; }
+.screen:not(.theme-aurora) .dayline { display:none; }
+
+/* weather sits bottom-right: furniture/floor in every room, never the view */
+.screen:not(.theme-aurora) .wx { top:auto; bottom:60px; right:60px; width:460px; padding:22px 28px; border-radius:26px; background:rgba(8,8,12,.55); backdrop-filter:none; }
+.screen:not(.theme-aurora) .wx .row { gap:20px; }
+.screen:not(.theme-aurora) .wx .deg { font-size:96px; }
+.screen:not(.theme-aurora) .wx .cond { font-size:26px; }
+.screen:not(.theme-aurora) .wx .hl { font-size:20px; }
+.screen:not(.theme-aurora) .wx .sun { transform:scale(.8); transform-origin:50% 50%; }
+.screen:not(.theme-aurora) .hours { margin-top:22px; padding-top:18px; }
+
+.screen:not(.theme-aurora) .quote { display:none; }
+.screen:not(.theme-aurora) .dock { left:60px; bottom:60px; background:rgba(8,8,12,.6); border-color:rgba(255,255,255,.12); }
+.screen:not(.theme-aurora) .top { left:60px; right:60px; top:40px; }
+
+/* Snowy cabin: the window fills the upper left, so the clock hangs on the log wall below it */
+.screen.layout-cabin .clock { top:600px; }
+
+/* Aquarium: the tank fills the wall, so the clock stands on the cabinet below it */
+.screen.layout-aquarium .clock { top:auto; bottom:60px; left:50%; transform:translateX(-50%); text-align:center; }
+.screen.layout-aquarium .clock .t { justify-content:center; }
+
+/* Rainy café: the time is chalked on the counter's chalkboard; weather sits on the counter */
+.screen.layout-cafe .clock { top:640px; left:1556px; width:240px; padding:0; background:none; text-align:center;
+  font-family:'Chalkboard SE', 'Comic Sans MS', 'Segoe Print', cursive; color:#f1efe6; text-shadow:0 0 6px rgba(255,255,255,.25); }
+.screen.layout-cafe .clock .t { font-size:72px; letter-spacing:0; justify-content:center; font-weight:400; }
+.screen.layout-cafe .clock .t .ampm { font-size:26px; margin-left:6px; color:#e6e3d8; }
+.screen.layout-cafe .clock .t .colon { animation:none; }
+.screen.layout-cafe .clock .d { font-size:20px; margin-top:6px; color:#d8d4c6; }
+.screen.layout-cafe .wx { right:auto; left:520px; }

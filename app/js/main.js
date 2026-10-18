@@ -9,8 +9,9 @@ import { pickBridge } from './bridge.js';
 import { tileHtml, withPictures, hasVisiblePixels } from './icons.js';
 import { openPicker, openAppGrid } from './picker.js';
 import { loadPrefs, savePrefs, loadWeather, saveWeather } from './store.js';
-// TEMPORARY (themes plan, Task 1): on the projector, open the video playback test first.
-if (window.parent !== window && !/nospike/.test(location.search)) location.replace('spike.html');
+import { resolveScene } from './themes.js';
+import { createSceneRenderer } from './scene.js';
+import { mediaUrl } from './media.js';
 
 const WEATHER_EVERY = 15 * 60 * 1000;
 const FETCH_TIMEOUT = 10000;
@@ -59,6 +60,20 @@ function sun() {
   return d && Number.isFinite(d.riseMin) && Number.isFinite(d.setMin) ? { rise: d.riseMin, set: d.setMin } : DEFAULT_SUN;
 }
 
+// ---- theme scene ----
+const renderer = createSceneRenderer(screen, { mediaUrl: (p) => mediaUrl(p, location.pathname) });
+
+const currentCtx = () => {
+  const { rise, set } = sun();
+  return { icon: (cache && cache.data && cache.data.icon) || null, nowMin: nowMin(new Date()), riseMin: rise, setMin: set };
+};
+
+// Cheap to call often: the renderer skips the work when the scene hasn't changed.
+function applyTheme() {
+  renderer.apply(prefs.theme, resolveScene(prefs.theme, prefs.themeOptions, currentCtx()));
+  renderer.setPaused(prefs.reduceMotion);
+}
+
 // ---- layout ----
 function fit() {
   const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
@@ -90,6 +105,7 @@ function tick() {
   $('set').textContent = `☾ ${fmtMin(set)}`;
   screen.dataset.t = themeFor(m, rise, set);
   renderWeather();
+  applyTheme(); // each minute and after weather/prefs changes (retick): Live view follows sun + weather
 }
 const retick = () => {
   lastMinute = -1;

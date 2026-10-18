@@ -1,8 +1,11 @@
 // localStorage helpers for preferences (fl.prefs) and the weather cache (fl.weather).
+import { cleanThemePrefs } from './themes.js';
 const PREFS = 'fl.prefs';
 const WEATHER = 'fl.weather';
 
-export const DEFAULT_PREFS = { name: '', city: '', lat: null, lon: null, hour24: false, reduceMotion: false };
+export const DEFAULT_PREFS = {
+  name: '', city: '', lat: null, lon: null, hour24: false, reduceMotion: false, theme: 'aurora', themeOptions: {},
+};
 const TYPES = { name: 'string', city: 'string', lat: 'number', lon: 'number', hour24: 'boolean', reduceMotion: 'boolean' };
 
 const read = (storage, key) => {
@@ -22,12 +25,12 @@ const write = (storage, key, value) => {
 
 export function loadPrefs(storage) {
   const raw = read(storage, PREFS);
-  const prefs = { ...DEFAULT_PREFS };
+  const prefs = { ...DEFAULT_PREFS, themeOptions: {} };
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return prefs;
   for (const k of Object.keys(TYPES)) {
     if (typeof raw[k] === TYPES[k] && (TYPES[k] !== 'number' || Number.isFinite(raw[k]))) prefs[k] = raw[k];
   }
-  return prefs;
+  return { ...prefs, ...cleanThemePrefs(raw.theme, raw.themeOptions) };
 }
 
 export const savePrefs = (storage, prefs) => write(storage, PREFS, prefs);

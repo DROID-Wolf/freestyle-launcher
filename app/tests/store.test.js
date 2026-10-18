@@ -28,6 +28,26 @@ test('savePrefs round-trips and survives a throwing storage', () => {
   assert.deepEqual(loadPrefs(bad), DEFAULT_PREFS);
 });
 
+test('prefs saved before themes existed load as Aurora, everything else unchanged', () => {
+  const today = { name: 'Nick', city: 'State College', lat: 40.79, lon: -77.86, hour24: false, reduceMotion: false };
+  const s = memStorage({ 'fl.prefs': JSON.stringify(today) });
+  assert.deepEqual(loadPrefs(s), { ...today, theme: 'aurora', themeOptions: {} });
+});
+
+test('a saved theme with a cleared window style round-trips', () => {
+  const s = memStorage();
+  const p = { ...DEFAULT_PREFS, theme: 'window', themeOptions: { window: { style: null, view: 'beach' } } };
+  savePrefs(s, p);
+  assert.deepEqual(loadPrefs(s), p);
+});
+
+test('a bad saved theme falls back to Aurora', () => {
+  const s = memStorage({ 'fl.prefs': JSON.stringify({ theme: 42, themeOptions: 'x' }) });
+  const p = loadPrefs(s);
+  assert.equal(p.theme, 'aurora');
+  assert.deepEqual(p.themeOptions, {});
+});
+
 test('weather cache round-trips; corrupt or shapeless cache is null', () => {
   const s = memStorage();
   assert.equal(loadWeather(s), null);

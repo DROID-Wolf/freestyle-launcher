@@ -1,0 +1,16 @@
+/* Aurora: the original look. Its background (time-of-day colours + drifting blobs) is always
+   in the page underneath #scene, so it is also what any theme falls back to. */
+.screen[data-t="morning"] { --base:#1b1420; --b1:#ff9a6b; --b2:#f5c66b; --b3:#8a6bd1; --accent:#ffd2a8; }
+.screen[data-t="day"]     { --base:#0d1a2b; --b1:#3aa0ff; --b2:#58e0c8; --b3:#7a8cff; --accent:#bfe6ff; }
+.screen[data-t="evening"] { --base:#120c1e; --b1:#ff6a88; --b2:#ff9f5a; --b3:#6b4bd6; --accent:#ffc2a6; }
+.screen[data-t="night"]   { --base:#05070f; --b1:#2747a8; --b2:#1aa39a; --b3:#5b2c99; --accent:#a9c2ff; }
+
+/* aurora blobs (transform-only animation = cheap on TV hardware) */
+.blob { position:absolute; border-radius:50%; filter:blur(120px); opacity:.55; will-change:transform; transition:background 1.2s; }
+.b1 { width:900px; height:900px; background:var(--b1); left:-250px; top:-300px; animation:d1 38s ease-in-out infinite alternate; }
+.b2 { width:800px; height:800px; background:var(--b2); right:-250px; bottom:-350px; opacity:.4; animation:d2 44s ease-in-out infinite alternate; }
+.b3 { width:700px; height:700px; background:var(--b3); left:700px; top:250px; opacity:.35; animation:d3 52s ease-in-out infinite alternate; }
+@keyframes d1 { to { transform:translate(380px,220px) scale(1.15); } }
+@keyframes d2 { to { transform:translate(-420px,-160px) scale(.9); } }
+@keyframes d3 { to { transform:translate(-300px,-200px) scale(1.2); } }
+.grain { position:absolute; left:0; top:0; right:0; bottom:0; background:radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,.55) 100%); }

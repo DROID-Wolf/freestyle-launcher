@@ -6,21 +6,13 @@ body { color:#f2f2f4; font-family:Outfit, system-ui, sans-serif; }
 .screen { position:absolute; left:0; top:0; width:1920px; height:1080px; transform-origin:0 0; overflow:hidden;
           background:var(--base); transition:background 1.2s; }
 
-/* themes */
-.screen[data-t="morning"] { --base:#1b1420; --b1:#ff9a6b; --b2:#f5c66b; --b3:#8a6bd1; --accent:#ffd2a8; }
-.screen[data-t="day"]     { --base:#0d1a2b; --b1:#3aa0ff; --b2:#58e0c8; --b3:#7a8cff; --accent:#bfe6ff; }
-.screen[data-t="evening"] { --base:#120c1e; --b1:#ff6a88; --b2:#ff9f5a; --b3:#6b4bd6; --accent:#ffc2a6; }
-.screen[data-t="night"]   { --base:#05070f; --b1:#2747a8; --b2:#1aa39a; --b3:#5b2c99; --accent:#a9c2ff; }
+/* Aurora colours + blobs live in themes/aurora.css (always loaded: it is every theme's fallback). */
 
-/* aurora blobs (transform-only animation = cheap on TV hardware) */
-.blob { position:absolute; border-radius:50%; filter:blur(120px); opacity:.55; will-change:transform; transition:background 1.2s; }
-.b1 { width:900px; height:900px; background:var(--b1); left:-250px; top:-300px; animation:d1 38s ease-in-out infinite alternate; }
-.b2 { width:800px; height:800px; background:var(--b2); right:-250px; bottom:-350px; opacity:.4; animation:d2 44s ease-in-out infinite alternate; }
-.b3 { width:700px; height:700px; background:var(--b3); left:700px; top:250px; opacity:.35; animation:d3 52s ease-in-out infinite alternate; }
-@keyframes d1 { to { transform:translate(380px,220px) scale(1.15); } }
-@keyframes d2 { to { transform:translate(-420px,-160px) scale(.9); } }
-@keyframes d3 { to { transform:translate(-300px,-200px) scale(1.2); } }
-.grain { position:absolute; left:0; top:0; right:0; bottom:0; background:radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,.55) 100%); }
+/* theme scene layer (scene.js): above the aurora background, below every widget */
+#scene { position:absolute; left:0; top:0; width:1920px; height:1080px; overflow:hidden; }
+.screen.scene-fallback #scene { display:none; }
+#scene .room, #scene .slot, #scene .slot video { position:absolute; left:0; top:0; width:100%; height:100%; }
+#scene .room, #scene .slot video { object-fit:cover; }
 
 /* top bar */
 .top { position:absolute; top:60px; left:120px; right:120px; display:flex; justify-content:space-between; align-items:center; font-size:28px; color:rgba(255,255,255,.7); }
@@ -111,6 +103,22 @@ body { color:#f2f2f4; font-family:Outfit, system-ui, sans-serif; }
 .ov .tab { font-size:26px; padding:12px 30px; border-radius:999px; background:rgba(255,255,255,.08); color:rgba(255,255,255,.7); cursor:pointer; transition:transform .2s; }
 .ov .tab.on { background:rgba(255,255,255,.22); color:#fff; }
 .ov .tab.focus { background:#fff; color:#111; transform:scale(1.08); }
+
+/* Themes tab: menu goes see-through so the applied theme shows behind it */
+.ov.see { background:rgba(6,6,12,.6); backdrop-filter:blur(3px); }
+.tcards { display:flex; gap:28px; margin-top:40px; }
+.tcard { width:240px; display:flex; flex-direction:column; align-items:center; gap:12px; font-size:24px; color:rgba(255,255,255,.85); cursor:pointer; }
+.tcard .thumb { position:relative; width:240px; height:135px; border-radius:16px; overflow:hidden; border:3px solid transparent; transition:transform .2s; }
+.tcard .thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.tcard.focus .thumb { border-color:#fff; transform:scale(1.08); box-shadow:0 0 0 6px rgba(255,255,255,.25); }
+.tcard.cur .thumb::after { content:"✓"; position:absolute; right:8px; top:8px; width:34px; height:34px; border-radius:50%; background:#fff; color:#111;
+  font-size:20px; display:flex; align-items:center; justify-content:center; }
+.orows { margin-top:44px; display:flex; flex-direction:column; gap:22px; }
+.orow { display:flex; align-items:center; gap:16px; font-size:24px; }
+.orow .lbl { width:120px; color:rgba(255,255,255,.6); }
+.pill2 { padding:12px 28px; border-radius:999px; background:rgba(255,255,255,.12); cursor:pointer; transition:transform .2s; }
+.pill2.on { background:rgba(255,255,255,.32); }
+.pill2.focus { background:#fff; color:#111; transform:scale(1.08); }
 .slots { display:flex; gap:24px; margin-top:36px; align-items:center; }
 .slots .lbl { font-size:22px; color:rgba(255,255,255,.5); letter-spacing:2px; text-transform:uppercase; width:150px; }
 .slot { width:96px; height:96px; border-radius:26px; border:2px dashed rgba(255,255,255,.2); }

@@ -3,8 +3,21 @@
 import { navigate } from './focus.js';
 import { toggleApp, moveApp, MAX_DOCK } from './dock.js';
 import { tileHtml, escapeHtml } from './icons.js';
+import { THEMES, defaultOptions } from './themes.js';
+import { mediaUrl } from './media.js';
 
 const COLS = 6;
+const TABS = ['apps', 'themes', 'prefs'];
+const thumbUrl = (p) => mediaUrl(p, location.pathname);
+// Card colour shown until (or instead of, if missing) the theme's thumbnail picture.
+const CARD_BG = {
+  aurora: 'radial-gradient(circle at 20% 20%,#ff6a88,transparent 60%),radial-gradient(circle at 80% 90%,#ff9f5a,transparent 60%),#120c1e',
+  window: 'linear-gradient(#0d1426,#1c2744 70%,#5a3c27 70%)',
+  fireplace: 'radial-gradient(ellipse at 50% 90%,#ffb02e,#ff5a00 30%,#2a120a 60%)',
+  cafe: 'linear-gradient(#1c2744 0 60%,#5a3a26 60%)',
+  aquarium: 'linear-gradient(#0a4c6e,#06324a 70%,#3d5a2c)',
+  cabin: 'linear-gradient(90deg,#a9b8cc 0 45%,#4b301d 45% 55%,#ff7a1a 55% 80%,#4b301d 80%)',
+};
 // Preferences rows by index; city, find and locate share one line (Left/Right move between them).
 const PREF_ROWS = ['name', 'city', 'find', 'locate', 'hour24', 'reduceMotion', 'done'];
 const CITY_LINE = [1, 2, 3];
@@ -49,7 +62,10 @@ const scrollToFocus = (el, prevTop = 0) => {
 export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose, findCity, locateMe, root = document.getElementById('screen') }) {
   const el = mount(root, 'pick');
   let tab = 'apps';
-  let row = 'body'; // 'tabs' | 'slots' (the "Your dock" row, apps tab) | 'body'
+  // 'tabs' | 'slots' (the "Your dock" row, apps tab) | 'cards' / 'opts' (themes tab) | 'body'
+  let row = 'body';
+  let themeCard = Math.max(0, THEMES.findIndex((t) => t.id === prefs.theme)); // card the option rows belong to
+  let optRow = 0; // which option row (themes tab, row 'opts')
   let slotMenu = -1; // -1 closed; else the focused action under a dock slot (SLOT_ACTIONS index)
   let idx = 0;
   let status = '';
@@ -63,7 +79,81 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
     return a && a.tagName === 'INPUT' && el.contains(a) ? a : null;
   };
   const isFocus = (r, i) => (row === r && idx === i ? ' focus' : '');
-  const doneIndex = () => (tab === 'apps' ? apps.length : PREF_ROWS.length - 1);
+  const doneIndex = () => (tab === 'apps' ? apps.length : tab === 'themes' ? 0 : PREF_ROWS.length - 1);
+
+  // ---- themes tab ----
+  const cardTheme = () => THEMES[themeCard];
+  const themeOpts = (t) => ({ ...defaultOptions(t.id), ...((prefs.themeOptions || {})[t.id] || {}) });
+
+  function themesHtml() {
+    const cards = THEMES.map((t, i) => {
+      const cls = `tcard${prefs.theme === t.id ? ' cur' : ''}${row === 'cards' && idx === i ? ' focus' : ''}`;
+      return `<div class="${cls}" data-card="${i}"><div class="thumb" style="background:${CARD_BG[t.id]}">` +
+        (t.thumb ? `<img src="${escapeHtml(thumbUrl(t.thumb))}" alt="" onerror="this.remove()">` : '') +
+        `</div><span>${escapeHtml(t.name)}</span></div>`;
+    }).join('');
+    const t = cardTheme();
+    const cur = themeOpts(t);
+    const rows = t.options.map((o, r) => {
+      const pills = o.values.map((v, i) => {
+        const on = cur[o.key] === v.id ? ' on' : '';
+        const f = row === 'opts' && optRow === r && idx === i ? ' focus' : '';
+        return `<div class="pill2${on}${f}" data-opt="${r}" data-val="${i}">${escapeHtml(v.label)}</div>`;
+      }).join('');
+      return `<div class="orow"><span class="lbl">${escapeHtml(o.label)}</span>${pills}</div>`;
+    }).join('');
+    const hint = t.options.some((o) => o.allowNone) ? ' Select the chosen style again to turn it off.' : '';
+    return `<p>Pick a theme. It changes right away; your apps, name and city stay the same.${hint}</p>
+      <div class="tcards">${cards}</div><div class="orows">${rows}</div>`;
+  }
+
+  // Enter on a pill: choose it (and switch to its theme); on a clearable row, choosing the
+  // already-selected value clears it (window style off = full-screen view).
+  function chooseOption(r, i) {
+    const t = cardTheme();
+    const o = t.options[r];
+    const cur = themeOpts(t);
+    const v = o.values[i].id;
+    const next = o.allowNone && cur[o.key] === v ? null : v;
+    prefs.themeOptions = { ...(prefs.themeOptions || {}), [t.id]: { ...cur, [o.key]: next } };
+    prefs.theme = t.id;
+    emit();
+    render();
+  }
+
+  function chooseTheme(i) {
+    themeCard = i;
+    prefs.theme = THEMES[i].id;
+    emit();
+    render();
+  }
+
+  const optIndex = (r) => {
+    const o = cardTheme().options[r];
+    return Math.max(0, o.values.findIndex((v) => v.id === themeOpts(cardTheme())[o.key]));
+  };
+
+  function moveThemes(key) {
+    const opts = cardTheme().options;
+    if (row === 'cards') {
+      if (key === 'ArrowLeft') themeCard = Math.max(0, themeCard - 1);
+      else if (key === 'ArrowRight') themeCard = Math.min(THEMES.length - 1, themeCard + 1);
+      else if (key === 'ArrowUp') return void ((row = 'tabs'), (idx = TABS.indexOf('themes')));
+      else if (key === 'ArrowDown') return void (opts.length ? ((row = 'opts'), (optRow = 0), (idx = optIndex(0))) : ((row = 'body'), (idx = 0)));
+      idx = themeCard;
+      return;
+    }
+    if (row === 'opts') {
+      const n = opts[optRow].values.length;
+      if (key === 'ArrowLeft') idx = Math.max(0, idx - 1);
+      else if (key === 'ArrowRight') idx = Math.min(n - 1, idx + 1);
+      else if (key === 'ArrowUp') optRow > 0 ? ((optRow -= 1), (idx = optIndex(optRow))) : ((row = 'cards'), (idx = themeCard));
+      else if (key === 'ArrowDown') optRow < opts.length - 1 ? ((optRow += 1), (idx = optIndex(optRow))) : ((row = 'body'), (idx = 0));
+      return;
+    }
+    // Done button
+    if (key === 'ArrowUp') opts.length ? ((row = 'opts'), (optRow = opts.length - 1), (idx = optIndex(optRow))) : ((row = 'cards'), (idx = themeCard));
+  }
 
   function slotMenuHtml() {
     if (row !== 'slots' || slotMenu < 0) return '';
@@ -109,9 +199,10 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
   function render() {
     const tabBtn = (name, i, label) => `<div class="tab${tab === name ? ' on' : ''}${isFocus('tabs', i)}" data-tab="${name}">${label}</div>`;
     const prevTop = gridScroll(el);
+    el.classList.toggle('see', tab === 'themes'); // let the chosen theme show through
     el.innerHTML = `<h2>Customize</h2>
-      <div class="tabs">${tabBtn('apps', 0, 'Apps')}${tabBtn('prefs', 1, 'Preferences')}</div>
-      ${tab === 'apps' ? appsHtml() : prefsHtml()}
+      <div class="tabs">${tabBtn('apps', 0, 'Apps')}${tabBtn('themes', 1, 'Themes')}${tabBtn('prefs', 2, 'Preferences')}</div>
+      ${tab === 'apps' ? appsHtml() : tab === 'themes' ? themesHtml() : prefsHtml()}
       <div class="done${isFocus('body', doneIndex())}" data-i="${doneIndex()}">Done</div>`;
     scrollToFocus(el, prevTop);
   }
@@ -180,6 +271,8 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
 
   function activate() {
     if (row === 'tabs') return;
+    if (row === 'cards') return chooseTheme(idx);
+    if (row === 'opts') return chooseOption(optRow, idx);
     if (row === 'slots') {
       if (slotMenu < 0) (slotMenu = 1), render(); // open the bar on Remove
       else slotAction(SLOT_ACTIONS[slotMenu].act);
@@ -229,7 +322,7 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
     const onCityLine = CITY_LINE.indexOf(idx) >= 0;
     const below = CITY_LINE[CITY_LINE.length - 1] + 1;
     if (key === 'ArrowUp') {
-      if (idx === 0) (row = 'tabs'), (idx = 1);
+      if (idx === 0) (row = 'tabs'), (idx = TABS.indexOf('prefs'));
       else idx = onCityLine ? 0 : idx === below ? 1 : idx - 1;
     } else if (key === 'ArrowDown') idx = onCityLine ? below : Math.min(PREF_ROWS.length - 1, idx + 1);
     else if (key === 'ArrowRight' && onCityLine) idx = Math.min(idx + 1, below - 1);
@@ -265,10 +358,18 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
     if (key === 'Escape') return close(), true;
     if (key === 'Enter') return activate(), true;
     if (row === 'tabs') {
-      if (key === 'ArrowLeft') switchTab('apps'), (idx = 0);
-      else if (key === 'ArrowRight') switchTab('prefs'), (idx = 1);
-      else if (key === 'ArrowDown') (row = tab === 'apps' && dock.length ? 'slots' : 'body'), (idx = 0);
-      else return false;
+      const t = TABS.indexOf(tab);
+      if (key === 'ArrowLeft' && t > 0) switchTab(TABS[t - 1]), (idx = t - 1);
+      else if (key === 'ArrowRight' && t < TABS.length - 1) switchTab(TABS[t + 1]), (idx = t + 1);
+      else if (key === 'ArrowDown') {
+        if (tab === 'themes') (row = 'cards'), (idx = themeCard);
+        else (row = tab === 'apps' && dock.length ? 'slots' : 'body'), (idx = 0);
+      } else if (key !== 'ArrowLeft' && key !== 'ArrowRight') return false;
+      render();
+      return true;
+    }
+    if (tab === 'themes') {
+      moveThemes(key);
       render();
       return true;
     }
@@ -302,9 +403,20 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
     } else if (e.target.id === 'pfCity') cityDraft = e.target.value;
   });
   el.addEventListener('click', (e) => {
-    const t = e.target.closest('[data-tab],[data-i],[data-slot],[data-act]');
+    const t = e.target.closest('[data-tab],[data-i],[data-slot],[data-act],[data-card],[data-opt]');
     if (!t) return;
     if (t.dataset.act) return slotAction(t.dataset.act);
+    if (t.dataset.card !== undefined) {
+      row = 'cards';
+      idx = Number(t.dataset.card);
+      return chooseTheme(idx);
+    }
+    if (t.dataset.opt !== undefined) {
+      row = 'opts';
+      optRow = Number(t.dataset.opt);
+      idx = Number(t.dataset.val);
+      return chooseOption(optRow, idx);
+    }
     if (t.dataset.slot !== undefined) {
       row = 'slots';
       idx = Number(t.dataset.slot);
@@ -313,7 +425,7 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
     }
     if (t.dataset.tab) {
       row = 'tabs';
-      idx = t.dataset.tab === 'apps' ? 0 : 1;
+      idx = TABS.indexOf(t.dataset.tab);
       switchTab(t.dataset.tab);
       return render();
     }
