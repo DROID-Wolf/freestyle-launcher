@@ -64,13 +64,14 @@ const scrollToFocus = (el, prevTop = 0) => {
 
 export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose, findCity, locateMe, root = document.getElementById('screen') }) {
   const el = mount(root, 'pick');
-  let tab = 'apps';
+  let tab = TABS[0]; // opens on the first tab (Themes)
   // 'tabs' | 'slots' (the "Your dock" row, apps tab) | 'cards' / 'opts' / 'dim' (themes tab) | 'body'
   let row = 'body';
   let themeCard = Math.max(0, THEMES.findIndex((t) => t.id === prefs.theme)); // card the option rows belong to
   let optRow = 0; // which option row (themes tab, row 'opts')
   let slotMenu = -1; // -1 closed; else the focused action under a dock slot (SLOT_ACTIONS index)
   let idx = 0;
+  if (tab === 'themes') (row = 'cards'), (idx = themeCard); // start on the current theme's card
   let status = '';
   let fullTimer = 0;
   let cityDraft = prefs.city;
