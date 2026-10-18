@@ -31,21 +31,28 @@ function pickOne(group) {
 
 // Store apps on the Freestyle (YouTube, YouTube TV, …) report a generic picture shared by many
 // apps: the device has no local copy of their logo. For well-known services, use the real logo
-// from the service's website instead. Most specific patterns first.
+// from the service's website instead, on the brand's background colour so the tile is filled
+// like a native icon. Most specific patterns first.
 const BRANDS = [
-  [/youtube\s*tv/i, 'tv.youtube.com'], [/youtube\s*kids/i, 'youtubekids.com'], [/youtube/i, 'youtube.com'],
-  [/netflix/i, 'netflix.com'], [/prime\s*video|amazon\s*video/i, 'primevideo.com'], [/disney/i, 'disneyplus.com'],
-  [/hulu/i, 'hulu.com'], [/^max$|hbo/i, 'max.com'], [/spotify/i, 'spotify.com'], [/plex/i, 'plex.tv'],
-  [/tubi/i, 'tubitv.com'], [/twitch/i, 'twitch.tv'], [/apple\s*tv/i, 'tv.apple.com'], [/apple\s*music/i, 'music.apple.com'],
-  [/paramount/i, 'paramountplus.com'], [/peacock/i, 'peacocktv.com'], [/pluto/i, 'pluto.tv'], [/sling/i, 'sling.com'],
-  [/fubo/i, 'fubo.tv'], [/crunchyroll/i, 'crunchyroll.com'], [/espn/i, 'espn.com'], [/pandora/i, 'pandora.com'],
-  [/amazon\s*music/i, 'music.amazon.com'], [/philo/i, 'philo.com'], [/vudu|fandango/i, 'vudu.com'],
+  [/youtube\s*tv/i, 'tv.youtube.com', '#ff0000'], [/youtube\s*kids/i, 'youtubekids.com', '#ff0000'],
+  [/youtube/i, 'youtube.com', '#ff0000'], [/netflix/i, 'netflix.com', '#000000'],
+  [/prime\s*video|amazon\s*video/i, 'primevideo.com', '#1a98ff'], [/disney/i, 'disneyplus.com', '#0e1a4a'],
+  [/hulu/i, 'hulu.com', '#1ce783'], [/^max$|hbo/i, 'max.com', '#002be7'], [/spotify/i, 'spotify.com', '#000000'],
+  [/plex/i, 'plex.tv', '#1f1f1f'], [/tubi/i, 'tubitv.com', '#7408ff'], [/twitch/i, 'twitch.tv', '#9146ff'],
+  [/apple\s*tv/i, 'tv.apple.com', '#000000'], [/apple\s*music/i, 'music.apple.com', '#fa243c'],
+  [/paramount/i, 'paramountplus.com', '#0064ff'], [/peacock/i, 'peacocktv.com', '#000000'], [/pluto/i, 'pluto.tv', '#000000'],
+  [/sling/i, 'sling.com', '#0c2340'], [/fubo/i, 'fubo.tv', '#fa4616'], [/crunchyroll/i, 'crunchyroll.com', '#f47521'],
+  [/espn/i, 'espn.com', '#ffffff'], [/pandora/i, 'pandora.com', '#224099'], [/amazon\s*music/i, 'music.amazon.com', '#0e1a2b'],
+  [/philo/i, 'philo.com', '#000000'], [/vudu|fandango/i, 'vudu.com', '#3399ff'],
 ];
+const findBrand = (name) => BRANDS.find(([re]) => re.test(name));
 
 export function brandIcon(name) {
-  const hit = BRANDS.find(([re]) => re.test(name));
+  const hit = findBrand(name);
   return hit ? `https://www.google.com/s2/favicons?domain=${hit[1]}&sz=128` : null;
 }
+
+const brandColor = (name) => (findBrand(name) || [])[2] || null;
 
 export function withPictures(list) {
   const pictured = list.filter((a) => typeof a.icon === 'string' && a.icon);
@@ -67,7 +74,7 @@ export function withPictures(list) {
     }
     for (const [logo, same] of rescued) {
       const one = pickOne(same);
-      keep.set(one, { ...one, icon: logo });
+      keep.set(one, { ...one, icon: logo, iconBg: brandColor(one.name) });
     }
     return { apps: pictured.filter((a) => keep.has(a)).map((a) => keep.get(a)), note: '' };
   }
@@ -85,11 +92,13 @@ export function hasVisiblePixels(rgba) {
 // letter underneath would show through). If the picture fails to load, it removes itself and
 // the hidden letter tile comes back.
 export function tileHtml(app, extraClass = '') {
-  const cls = `tile ${colorClass(app.id)}${app.icon ? ' img' : ''}${extraClass ? ' ' + extraClass : ''}`;
+  const bg = app.icon && /^#[0-9a-f]{3,6}$/i.test(app.iconBg || '') ? app.iconBg : '';
+  const cls = `tile ${colorClass(app.id)}${app.icon ? ' img' : ''}${bg ? ' brand' : ''}${extraClass ? ' ' + extraClass : ''}`;
+  const style = bg ? ` style="background:${bg}"` : '';
   const face = app.icon
     ? `<span class="ltr">${letterOf(app.name)}</span><img src="${escapeHtml(app.icon)}" alt="" ` +
       `onerror="this.parentNode.classList.remove('img');this.remove()">`
     : letterOf(app.name);
-  return `<div class="${cls}" data-id="${escapeHtml(app.id)}">${face}` +
+  return `<div class="${cls}"${style} data-id="${escapeHtml(app.id)}">${face}` +
     `<span class="tip">${escapeHtml(app.name)}</span></div>`;
 }

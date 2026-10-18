@@ -54,6 +54,26 @@ test('known services behind a placeholder picture are kept with their real logo 
   assert.match(apps[1].icon, /tv\.youtube\.com/);
 });
 
+test('rescued brand apps carry their brand colour so the tile can be filled', () => {
+  const generic = 'data:image/png;base64,GENERIC';
+  const list = Array.from({ length: 6 }, (_, i) => ({ id: `Abcdefghi${i}.T${i}`, name: `Thing ${i}`, icon: generic }));
+  list.push({ id: '9Ur5IzDKqV.TizenYouTube', name: 'YouTube', icon: generic });
+  const [yt] = withPictures(list).apps;
+  assert.equal(yt.iconBg, '#ff0000');
+});
+
+test('a tile with iconBg is a filled brand tile with that background', () => {
+  const html = tileHtml({ id: 'yt', name: 'YouTube', icon: 'https://x/y.png', iconBg: '#ff0000' });
+  assert.match(html, /class="tile c\d+ img brand"/);
+  assert.match(html, /style="background:#ff0000"/);
+});
+
+test('iconBg that is not a plain hex colour is ignored', () => {
+  const html = tileHtml({ id: 'a', name: 'A', icon: 'https://x/y.png', iconBg: 'red;position:fixed' });
+  assert.ok(!html.includes('style='));
+  assert.ok(!html.includes('brand'));
+});
+
 test('brandIcon knows common services and nothing else', () => {
   assert.match(brandIcon('Netflix'), /netflix\.com/);
   assert.match(brandIcon('Prime Video'), /primevideo\.com/);
