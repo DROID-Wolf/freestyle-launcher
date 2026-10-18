@@ -87,8 +87,9 @@ body { color:#f2f2f4; font-family:Outfit, system-ui, sans-serif; }
 .tile img { position:absolute; left:0; top:0; width:100%; height:100%; border-radius:inherit; object-fit:contain; }
 .tile.img { background:rgba(255,255,255,.1); }
 .tile.img .ltr { display:none; }
+/* the picture is clipped by its wrapper, not the tile, so the name label above isn't cut off */
+.tile .face { position:absolute; left:0; top:0; right:0; bottom:0; border-radius:inherit; overflow:hidden; }
 /* web logos for store apps: brand colour fills the tile, logo enlarged so its edges blend in */
-.tile.brand { overflow:hidden; }
 .tile.brand img { transform:scale(1.25); }
 .tile.focus { transform:scale(1.18) translateY(-6px); box-shadow:0 0 0 4px #fff, 0 18px 40px rgba(0,0,0,.5); }
 .tile .tip { position:absolute; top:-58px; left:50%; transform:translateX(-50%); font-size:22px; font-weight:400; white-space:nowrap; background:rgba(0,0,0,.6); padding:6px 14px; border-radius:10px; opacity:0; transition:opacity .2s; pointer-events:none; }

@@ -95,9 +95,11 @@ export function tileHtml(app, extraClass = '') {
   const bg = app.icon && /^#[0-9a-f]{3,6}$/i.test(app.iconBg || '') ? app.iconBg : '';
   const cls = `tile ${colorClass(app.id)}${app.icon ? ' img' : ''}${bg ? ' brand' : ''}${extraClass ? ' ' + extraClass : ''}`;
   const style = bg ? ` style="background:${bg}"` : '';
+  // The picture sits in its own clipping wrapper (.face) so enlarged brand logos stay inside the
+  // rounded square while the name label above the tile is not clipped.
   const face = app.icon
-    ? `<span class="ltr">${letterOf(app.name)}</span><img src="${escapeHtml(app.icon)}" alt="" ` +
-      `onerror="this.parentNode.classList.remove('img');this.remove()">`
+    ? `<span class="ltr">${letterOf(app.name)}</span><span class="face"><img src="${escapeHtml(app.icon)}" alt="" ` +
+      `onerror="var t=this.closest('.tile');t.classList.remove('img','brand');t.style.background='';this.parentNode.remove()"></span>`
     : letterOf(app.name);
   return `<div class="${cls}"${style} data-id="${escapeHtml(app.id)}">${face}` +
     `<span class="tip">${escapeHtml(app.name)}</span></div>`;

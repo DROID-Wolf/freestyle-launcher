@@ -68,10 +68,15 @@ test('a tile with iconBg is a filled brand tile with that background', () => {
   assert.match(html, /style="background:#ff0000"/);
 });
 
+test('the picture is clipped inside its own wrapper, so the name label above the tile still shows', () => {
+  const html = tileHtml({ id: 'yt', name: 'YouTube', icon: 'https://x/y.png', iconBg: '#ff0000' });
+  assert.match(html, /<span class="face"><img [^>]*><\/span><span class="tip">YouTube<\/span>/);
+});
+
 test('iconBg that is not a plain hex colour is ignored', () => {
   const html = tileHtml({ id: 'a', name: 'A', icon: 'https://x/y.png', iconBg: 'red;position:fixed' });
   assert.ok(!html.includes('style='));
-  assert.ok(!html.includes('brand'));
+  assert.ok(!/class="[^"]*\bbrand\b/.test(html));
 });
 
 test('brandIcon knows common services and nothing else', () => {
