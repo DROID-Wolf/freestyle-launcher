@@ -16,16 +16,27 @@ const letterOf = (name) => {
 
 // The device lists ~1,000 entries, mostly system services without artwork: keep only apps with
 // a real picture. If no picture loaded at all (and the shell said why), show everything + reason.
-// Apps without their own artwork get Tizen's default icon (blue "TIZEN"): any picture shared by
-// PLACEHOLDER_MIN or more apps is treated as that placeholder and hidden too.
-const PLACEHOLDER_MIN = 3;
+// Apps without their own artwork get Tizen's default icon (blue "TIZEN"): a picture shared by
+// PLACEHOLDER_MIN or more apps is that placeholder, so those are hidden. A picture shared by a
+// few apps is one app listed several times (e.g. YouTube: store app, built-in copy, test
+// suite), so just one is kept: the store app (package id like "9Ur5IzDKqV."), else the first
+// that isn't a test/debug entry.
+const PLACEHOLDER_MIN = 6;
+const STORE_ID = /^[A-Za-z0-9]{10}\./;
+const TESTY = /test|debug/i;
+
+function pickOne(group) {
+  return group.find((a) => STORE_ID.test(a.id)) || group.find((a) => !TESTY.test(a.name)) || group[0];
+}
 
 export function withPictures(list) {
   const pictured = list.filter((a) => typeof a.icon === 'string' && a.icon);
   if (pictured.length) {
-    const uses = new Map();
-    for (const a of pictured) uses.set(a.icon, (uses.get(a.icon) || 0) + 1);
-    return { apps: pictured.filter((a) => uses.get(a.icon) < PLACEHOLDER_MIN), note: '' };
+    const groups = new Map();
+    for (const a of pictured) groups.set(a.icon, (groups.get(a.icon) || []).concat(a));
+    const keep = new Set();
+    for (const group of groups.values()) if (group.length < PLACEHOLDER_MIN) keep.add(pickOne(group));
+    return { apps: pictured.filter((a) => keep.has(a)), note: '' };
   }
   const failed = list.find((a) => a.iconError && a.iconError !== 'no icon');
   return { apps: list, note: failed ? `App pictures couldn't be loaded (${failed.iconError}).` : '' };

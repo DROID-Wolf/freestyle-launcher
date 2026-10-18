@@ -1,13 +1,21 @@
 // Overlays: the customize picker (Apps + Preferences tabs) and the all-apps launch grid.
 // Each returns { handleKey(key) -> boolean (consumed), close() }; main.js routes keys to it.
 import { navigate } from './focus.js';
-import { toggleApp, MAX_DOCK } from './dock.js';
+import { toggleApp, moveApp, MAX_DOCK } from './dock.js';
 import { tileHtml, escapeHtml } from './icons.js';
 
 const COLS = 6;
 // Preferences rows by index; city, find and locate share one line (Left/Right move between them).
 const PREF_ROWS = ['name', 'city', 'find', 'locate', 'hour24', 'reduceMotion', 'done'];
 const CITY_LINE = [1, 2, 3];
+// The bar under a selected "Your dock" app. Geometry matches .slots: 150px label + 24px gap,
+// then 96px slots 24px apart.
+const SLOT_ACTIONS = [
+  { act: 'left', label: '◀ Move left' },
+  { act: 'remove', label: '✕ Remove' },
+  { act: 'right', label: 'Move right ▶' },
+];
+const slotCenter = (i) => 174 + i * 120 + 48;
 const PIN_SVG = '<svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>';
 const appsMsg = (note) => `<div class="msg">${escapeHtml(note || "Couldn't load the installed apps.")}</div>`;
 
@@ -42,6 +50,7 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
   const el = mount(root, 'pick');
   let tab = 'apps';
   let row = 'body'; // 'tabs' | 'slots' (the "Your dock" row, apps tab) | 'body'
+  let slotMenu = -1; // -1 closed; else the focused action under a dock slot (SLOT_ACTIONS index)
   let idx = 0;
   let status = '';
   let fullTimer = 0;
@@ -56,6 +65,13 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
   const isFocus = (r, i) => (row === r && idx === i ? ' focus' : '');
   const doneIndex = () => (tab === 'apps' ? apps.length : PREF_ROWS.length - 1);
 
+  function slotMenuHtml() {
+    if (row !== 'slots' || slotMenu < 0) return '';
+    const btns = SLOT_ACTIONS.map((a, i) =>
+      `<div class="btn${i === slotMenu ? ' focus' : ''}" data-act="${a.act}">${a.label}</div>`).join('');
+    return `<div class="slotmenu" style="left:${slotCenter(idx)}px">${btns}</div>`;
+  }
+
   function appsHtml() {
     const slots = [];
     for (let i = 0; i < MAX_DOCK; i++) {
@@ -69,8 +85,8 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
       const tile = tileHtml(a, isFocus('body', i).trim()).replace(/<\/div>$/, `${badge}</div>`);
       return `<div class="gapp${n >= 0 ? ' sel' : ''}" data-i="${i}">${tile}<span class="nm">${escapeHtml(a.name)}</span></div>`;
     }).join('');
-    return `<p>Select up to ${MAX_DOCK} apps. They appear in the dock in the order you pick them. Select one again, or select it in Your dock, to remove it.</p>
-      <div class="slots"><span class="lbl">Your dock</span>${slots.join('')}</div>
+    return `<p>Select up to ${MAX_DOCK} apps. They appear in the dock in the order you pick them. Select one again to remove it, or select it in Your dock to move or remove it.</p>
+      <div class="slots"><span class="lbl">Your dock</span>${slots.join('')}${slotMenuHtml()}</div>
       ${apps.length ? `${appsNote ? appsMsg(appsNote) : ''}<div class="gridwrap"><div class="grid">${grid}</div></div>` : appsMsg(appsNote)}
       <div class="full">Dock is full. Remove an app first.</div>`;
   }
@@ -142,6 +158,7 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
 
   // Remove the focused "Your dock" app; stay in the row while it has apps.
   function removeSlot() {
+    slotMenu = -1;
     if (!dock[idx]) return;
     dock = dock.filter((_, i) => i !== idx);
     emit();
@@ -150,9 +167,24 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
     render();
   }
 
+  // Run an action from the bar under the selected dock app. Moving keeps the bar open so the
+  // app can be pressed along several places.
+  function slotAction(act) {
+    if (act === 'remove') return removeSlot();
+    const r = moveApp(dock, idx, act === 'left' ? -1 : 1);
+    dock = r.dock;
+    idx = r.index;
+    emit();
+    render();
+  }
+
   function activate() {
     if (row === 'tabs') return;
-    if (row === 'slots') return removeSlot();
+    if (row === 'slots') {
+      if (slotMenu < 0) (slotMenu = 1), render(); // open the bar on Remove
+      else slotAction(SLOT_ACTIONS[slotMenu].act);
+      return;
+    }
     if (idx === doneIndex()) return close();
     if (tab === 'apps') {
       const r = toggleApp(dock, apps[idx].id);
@@ -179,6 +211,7 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
     if (tab === name) return;
     tab = name;
     idx = 0;
+    slotMenu = -1;
     status = '';
     render();
   }
@@ -222,6 +255,13 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
       render();
       return true;
     }
+    if (row === 'slots' && slotMenu >= 0 && key !== 'Enter') {
+      if (key === 'ArrowLeft') slotMenu = Math.max(0, slotMenu - 1);
+      else if (key === 'ArrowRight') slotMenu = Math.min(SLOT_ACTIONS.length - 1, slotMenu + 1);
+      else slotMenu = -1; // Back, Up or Down closes the bar
+      render();
+      return true;
+    }
     if (key === 'Escape') return close(), true;
     if (key === 'Enter') return activate(), true;
     if (row === 'tabs') {
@@ -262,12 +302,14 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
     } else if (e.target.id === 'pfCity') cityDraft = e.target.value;
   });
   el.addEventListener('click', (e) => {
-    const t = e.target.closest('[data-tab],[data-i],[data-slot]');
+    const t = e.target.closest('[data-tab],[data-i],[data-slot],[data-act]');
     if (!t) return;
+    if (t.dataset.act) return slotAction(t.dataset.act);
     if (t.dataset.slot !== undefined) {
       row = 'slots';
       idx = Number(t.dataset.slot);
-      return removeSlot();
+      slotMenu = 1;
+      return render();
     }
     if (t.dataset.tab) {
       row = 'tabs';

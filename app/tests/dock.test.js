@@ -1,6 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_DOCK, toggleApp, pruneDock, loadDock, saveDock } from '../js/dock.js';
+import { MAX_DOCK, toggleApp, pruneDock, loadDock, saveDock, moveApp } from '../js/dock.js';
+
+test('moveApp swaps an app with its neighbour and reports its new index', () => {
+  const d = ['a', 'b', 'c'];
+  assert.deepEqual(moveApp(d, 1, -1), { dock: ['b', 'a', 'c'], index: 0 });
+  assert.deepEqual(moveApp(d, 1, 1), { dock: ['a', 'c', 'b'], index: 2 });
+  assert.deepEqual(d, ['a', 'b', 'c']); // input untouched
+});
+test('moveApp stops at the ends', () => {
+  assert.deepEqual(moveApp(['a', 'b'], 0, -1), { dock: ['a', 'b'], index: 0 });
+  assert.deepEqual(moveApp(['a', 'b'], 1, 1), { dock: ['a', 'b'], index: 1 });
+});
 
 const memStorage = (init = {}) => {
   const s = { ...init };

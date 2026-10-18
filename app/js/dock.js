@@ -8,6 +8,15 @@ export function toggleApp(dock, id) {
   return { dock: [...dock, id], full: false };
 }
 
+// Move the app at `index` one place left (delta -1) or right (+1); stops at the ends.
+export function moveApp(dock, index, delta) {
+  const to = index + delta;
+  if (to < 0 || to >= dock.length) return { dock: dock.slice(), index };
+  const next = dock.slice();
+  [next[index], next[to]] = [next[to], next[index]];
+  return { dock: next, index: to };
+}
+
 export function pruneDock(dock, installedIds) {
   const installed = new Set(installedIds);
   return dock.filter((id) => installed.has(id));

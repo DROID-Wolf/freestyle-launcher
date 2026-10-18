@@ -19,22 +19,31 @@ test('withPictures shows everything, with the reason, when no picture loaded at 
   assert.deepEqual(withPictures(list), { apps: list, note: "App pictures couldn't be loaded (SecurityError)." });
 });
 
-test('withPictures hides apps sharing a placeholder picture (3+ apps with the identical image)', () => {
+test('withPictures hides the placeholder picture (shared by 6+ apps)', () => {
   const tizen = 'data:image/png;base64,TIZEN';
-  const list = [
-    { id: 'netflix', name: 'Netflix', icon: 'data:image/png;base64,N' },
-    { id: 's1', name: 'Service 1', icon: tizen },
-    { id: 'yt', name: 'YouTube', icon: 'data:image/png;base64,Y' },
-    { id: 's2', name: 'Service 2', icon: tizen },
-    { id: 's3', name: 'Service 3', icon: tizen },
-  ];
-  assert.deepEqual(withPictures(list).apps.map((a) => a.id), ['netflix', 'yt']);
+  const services = Array.from({ length: 6 }, (_, i) => ({ id: `svc${i}`, name: `Service ${i}`, icon: tizen }));
+  const list = [{ id: 'netflix', name: 'Netflix', icon: 'data:image/png;base64,N' }, ...services];
+  assert.deepEqual(withPictures(list).apps.map((a) => a.id), ['netflix']);
 });
 
-test('two apps sharing a picture (e.g. a TV and a Kids variant) are kept', () => {
-  const same = 'data:image/png;base64,SAME';
-  const list = [{ id: 'a', name: 'A', icon: same }, { id: 'b', name: 'B', icon: same }];
-  assert.equal(withPictures(list).apps.length, 2);
+test('a few apps sharing one picture are one app: keep one, preferring the store app id', () => {
+  const yt = 'data:image/png;base64,YT';
+  const list = [
+    { id: 'com.samsung.tv.cobalt-yt', name: 'Youtube', icon: yt },
+    { id: 'org.tizen.netflix-app', name: 'Netflix', icon: 'data:image/png;base64,N' },
+    { id: 'com.samsung.tv.cobalt-app-1566', name: 'YouTubeTestSuite', icon: yt },
+    { id: '9Ur5IzDKqV.TizenYouTube', name: 'YouTube', icon: yt },
+  ];
+  assert.deepEqual(withPictures(list).apps.map((a) => a.id), ['org.tizen.netflix-app', '9Ur5IzDKqV.TizenYouTube']);
+});
+
+test('without a store id, the duplicate kept is the first that is not a test/debug entry', () => {
+  const same = 'data:image/png;base64,S';
+  const list = [
+    { id: 'x.test', name: 'Thing TestSuite', icon: same },
+    { id: 'x.main', name: 'Thing', icon: same },
+  ];
+  assert.deepEqual(withPictures(list).apps.map((a) => a.id), ['x.main']);
 });
 
 test('withPictures leaves the desktop mock (no icons, no errors) alone', () => {
