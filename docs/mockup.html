@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ambient Launcher Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#121216; color:#f2f2f4; font-family:Outfit, system-ui, sans-serif; padding:24px 16px 48px; }
+  h1 { font-weight:500; font-size:22px; margin-bottom:4px; }
+  .sub { color:#8a8a93; font-size:14px; margin-bottom:16px; line-height:1.5; }
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  .tabs button { font:inherit; font-size:14px; background:#1c1c22; color:#eee; border:1px solid #2a2a31; padding:8px 14px; border-radius:999px; cursor:pointer; }
+  .tabs button.on { background:#f2f2f4; color:#111; }
+  .frame { width:100%; max-width:1100px; aspect-ratio:16/9; border-radius:10px; overflow:hidden; position:relative; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+  .screen { position:absolute; left:0; top:0; width:1920px; height:1080px; transform-origin:0 0; overflow:hidden;
+            background:var(--base); transition:background 1.2s; }
+  .notes { max-width:1100px; margin-top:16px; font-size:14px; color:#b6b6bf; line-height:1.6; }
+  .notes li { margin-left:18px; }
+
+  /* themes */
+  .screen[data-t="morning"] { --base:#1b1420; --b1:#ff9a6b; --b2:#f5c66b; --b3:#8a6bd1; --accent:#ffd2a8; }
+  .screen[data-t="day"]     { --base:#0d1a2b; --b1:#3aa0ff; --b2:#58e0c8; --b3:#7a8cff; --accent:#bfe6ff; }
+  .screen[data-t="evening"] { --base:#120c1e; --b1:#ff6a88; --b2:#ff9f5a; --b3:#6b4bd6; --accent:#ffc2a6; }
+  .screen[data-t="night"]   { --base:#05070f; --b1:#2747a8; --b2:#1aa39a; --b3:#5b2c99; --accent:#a9c2ff; }
+
+  /* aurora blobs (transform-only animation = cheap on TV hardware) */
+  .blob { position:absolute; border-radius:50%; filter:blur(120px); opacity:.55; will-change:transform; transition:background 1.2s; }
+  .b1 { width:900px; height:900px; background:var(--b1); left:-250px; top:-300px; animation:d1 38s ease-in-out infinite alternate; }
+  .b2 { width:800px; height:800px; background:var(--b2); right:-250px; bottom:-350px; opacity:.4; animation:d2 44s ease-in-out infinite alternate; }
+  .b3 { width:700px; height:700px; background:var(--b3); left:700px; top:250px; opacity:.35; animation:d3 52s ease-in-out infinite alternate; }
+  @keyframes d1 { to { transform:translate(380px,220px) scale(1.15); } }
+  @keyframes d2 { to { transform:translate(-420px,-160px) scale(.9); } }
+  @keyframes d3 { to { transform:translate(-300px,-200px) scale(1.2); } }
+  .grain { position:absolute; inset:0; background:radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,.55) 100%); }
+
+  /* top bar */
+  .top { position:absolute; top:60px; left:120px; right:120px; display:flex; justify-content:space-between; align-items:center; font-size:28px; color:rgba(255,255,255,.7); }
+  .top .greet b { color:#fff; font-weight:400; }
+  .pills { display:flex; gap:16px; }
+  .pill { display:flex; align-items:center; gap:10px; padding:12px 22px; border-radius:999px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.1); font-size:22px; }
+  .pill svg { width:24px; height:24px; stroke:#fff; fill:none; stroke-width:2; }
+  .pill.iconly { padding:12px; width:50px; height:50px; justify-content:center; position:relative; cursor:pointer; transition:transform .2s; }
+  .pill.iconly svg { width:22px; height:22px; flex:none; }
+  .pill.iconly.focus { background:#fff; transform:scale(1.12); }
+  .pill.iconly.focus svg { stroke:#111; }
+  .tip2 { position:absolute; top:64px; right:0; font-size:20px; white-space:nowrap; background:rgba(0,0,0,.6); padding:6px 12px; border-radius:10px; opacity:0; transition:opacity .2s; pointer-events:none; }
+  .pill.iconly.focus .tip2 { opacity:1; }
+
+  /* clock */
+  .clock { position:absolute; left:120px; top:250px; }
+  .clock .t { font-size:300px; font-weight:200; letter-spacing:-8px; line-height:.9; display:flex; align-items:baseline; }
+  .clock .t .colon { animation:blink 2s steps(1) infinite; margin:0 4px; }
+  @keyframes blink { 50% { opacity:.25; } }
+  .clock .t .ampm { font-size:60px; letter-spacing:0; margin-left:24px; color:rgba(255,255,255,.6); font-weight:300; }
+  .clock .d { font-size:46px; font-weight:300; color:rgba(255,255,255,.85); margin-top:26px; }
+  .dayline { margin-top:34px; width:620px; }
+  .dayline .bar { height:6px; border-radius:3px; background:rgba(255,255,255,.12); overflow:hidden; }
+  .dayline .fill { height:100%; background:linear-gradient(90deg,var(--accent),#fff); border-radius:3px; }
+  .dayline .lbls { display:flex; justify-content:space-between; font-size:20px; color:rgba(255,255,255,.5); margin-top:10px; }
+
+  /* weather card */
+  .wx { position:absolute; right:120px; top:230px; width:600px; padding:44px 48px; border-radius:40px;
+        background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); backdrop-filter:blur(20px); }
+  .wx .row { display:flex; align-items:center; gap:28px; }
+  .wx .deg { font-size:130px; font-weight:200; line-height:1; }
+  .wx .cond { font-size:30px; color:rgba(255,255,255,.8); margin-top:6px; }
+  .wx .hl { font-size:24px; color:rgba(255,255,255,.55); margin-top:6px; }
+  .sun { width:130px; height:130px; position:relative; flex:none; }
+  .sun .core { position:absolute; left:20px; top:14px; width:72px; height:72px; border-radius:50%; background:radial-gradient(circle,#ffe7a3,#ffb547); box-shadow:0 0 50px #ffb54799; }
+  .sun .rays { position:absolute; left:6px; top:0; width:100px; height:100px; animation:spin 30s linear infinite; }
+  .sun .rays i { position:absolute; left:48px; top:0; width:4px; height:14px; border-radius:2px; background:#ffd27a; transform-origin:2px 50px; }
+  .sun .cloud { position:absolute; left:34px; top:62px; width:96px; height:44px; border-radius:30px; background:#eef2fa; animation:float 6s ease-in-out infinite alternate; }
+  .sun .cloud::before { content:""; position:absolute; left:18px; top:-26px; width:52px; height:52px; border-radius:50%; background:#eef2fa; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @keyframes float { to { transform:translateX(10px); } }
+  .hours { display:flex; justify-content:space-between; margin-top:40px; padding-top:30px; border-top:1px solid rgba(255,255,255,.1); }
+  .hours div { text-align:center; font-size:22px; color:rgba(255,255,255,.55); }
+  .hours div span { display:block; font-size:30px; color:#fff; margin-top:8px; }
+  .hours div em { display:block; font-style:normal; font-size:26px; margin-top:6px; }
+
+  /* dock */
+  .dock { position:absolute; left:120px; bottom:90px; display:flex; align-items:center; gap:26px; padding:22px 28px; border-radius:36px;
+          background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); }
+  .tile { width:96px; height:96px; border-radius:26px; display:flex; align-items:center; justify-content:center; font-size:38px; font-weight:500; color:#fff; transition:transform .2s, box-shadow .2s; position:relative; }
+  .tile.focus { transform:scale(1.18) translateY(-6px); box-shadow:0 0 0 4px #fff, 0 18px 40px rgba(0,0,0,.5); }
+  .tile .tip { position:absolute; top:-58px; left:50%; transform:translateX(-50%); font-size:22px; white-space:nowrap; background:rgba(0,0,0,.6); padding:6px 14px; border-radius:10px; opacity:0; transition:opacity .2s; }
+  .tile.focus .tip { opacity:1; }
+  .c1{background:linear-gradient(135deg,#e5484d,#9b1c22)} .c2{background:linear-gradient(135deg,#ff4d4d,#c20000)}
+  .c3{background:linear-gradient(135deg,#3b82f6,#1e3a8a)} .c4{background:linear-gradient(135deg,#22c55e,#14532d)}
+  .c5{background:linear-gradient(135deg,#a855f7,#4c1d95)} .c8{background:rgba(255,255,255,.14)}
+  .sep { width:1px; height:60px; background:rgba(255,255,255,.15); }
+
+  .c6{background:linear-gradient(135deg,#f59e0b,#92400e)} .c7{background:linear-gradient(135deg,#14b8a6,#134e4a)}
+  .c9{background:linear-gradient(135deg,#ec4899,#831843)} .c10{background:linear-gradient(135deg,#0ea5e9,#0c4a6e)}
+  .c11{background:linear-gradient(135deg,#84cc16,#365314)} .c12{background:linear-gradient(135deg,#f97316,#7c2d12)}
+  .tile.edit { background:rgba(255,255,255,.08); border:2px dashed rgba(255,255,255,.3); font-size:34px; }
+
+  /* customize overlay */
+  .ov { position:absolute; inset:0; z-index:5; background:rgba(6,6,12,.95); backdrop-filter:blur(30px); display:none; padding:110px 160px; }
+  .ov.open { display:block; }
+  .ov h2 { font-size:56px; font-weight:300; }
+  .ov p { font-size:26px; color:rgba(255,255,255,.6); margin-top:12px; }
+  .slots { display:flex; gap:24px; margin-top:44px; align-items:center; }
+  .slots .lbl { font-size:22px; color:rgba(255,255,255,.5); letter-spacing:2px; text-transform:uppercase; width:150px; }
+  .slot { width:96px; height:96px; border-radius:26px; border:2px dashed rgba(255,255,255,.2); display:flex; align-items:center; justify-content:center; font-size:38px; font-weight:500; }
+  .grid { display:grid; grid-template-columns:repeat(6, 1fr); gap:34px 40px; margin-top:56px; max-width:1300px; }
+  .gapp { display:flex; flex-direction:column; align-items:center; gap:14px; font-size:22px; color:rgba(255,255,255,.75); cursor:pointer; }
+  .gapp .tile { width:110px; height:110px; font-size:44px; }
+  .gapp.sel .tile::after { content:attr(data-n); position:absolute; top:-12px; right:-12px; width:44px; height:44px; border-radius:50%; background:#fff; color:#111; font-size:24px; display:flex; align-items:center; justify-content:center; }
+  .gapp:not(.sel) .tile { opacity:.45; }
+  .done { position:absolute; right:160px; bottom:110px; font:inherit; font-size:28px; padding:18px 48px; border-radius:999px; background:rgba(255,255,255,.12); color:#fff; border:none; cursor:pointer; transition:transform .2s; }
+  .done.focus { background:#fff; color:#111; transform:scale(1.08); }
+  .full { position:absolute; left:160px; bottom:124px; font-size:24px; color:#ffb4a6; opacity:0; transition:opacity .3s; }
+  .full.show { opacity:1; }
+
+  /* quote / footer */
+  .quote { position:absolute; right:120px; bottom:110px; width:600px; text-align:right; font-size:26px; font-weight:300; color:rgba(255,255,255,.6); line-height:1.45; }
+  .quote b { display:block; font-weight:400; color:rgba(255,255,255,.85); font-size:20px; letter-spacing:2px; text-transform:uppercase; margin-bottom:10px; }
+</style>
+</head>
+<body>
+<h1>Ambient launcher: preview</h1>
+<p class="sub">The clock is live. Click inside the preview, then use ← → to move along the dock like the remote would. Press ↑ (or click) to reach the small ✎ button at the top right and change the quick apps. Switch the time-of-day theme below. On the projector it would change automatically.</p>
+<div class="tabs" id="tabs">
+  <button data-t="morning">Morning</button>
+  <button data-t="day">Day</button>
+  <button data-t="evening" class="on">Evening</button>
+  <button data-t="night">Night</button>
+</div>
+
+<div class="frame" tabindex="0" id="frame"><div class="screen" id="screen" data-t="evening">
+  <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="grain"></div>
+
+  <div class="top">
+    <div class="greet"><span id="greet">Good evening</span>, <b>Nick</b></div>
+    <div class="pills">
+      <div class="pill iconly" id="editBtn" title="Customize quick apps"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg><span class="tip2">Customize apps</span></div>
+      <div class="pill"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M8 21h8"/></svg>Inputs</div>
+      <div class="pill"><svg viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/></svg>Home Wi-Fi</div>
+      <div class="pill"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>Settings</div>
+    </div>
+  </div>
+
+  <div class="clock">
+    <div class="t"><span id="hh">9</span><span class="colon">:</span><span id="mm">41</span><span class="ampm" id="ap">PM</span></div>
+    <div class="d" id="date">Saturday, October 17</div>
+    <div class="dayline"><div class="bar"><div class="fill" id="fill" style="width:60%"></div></div>
+      <div class="lbls"><span>☀ 7:24 AM</span><span id="daypct">Day 60% done</span><span>☾ 6:31 PM</span></div></div>
+  </div>
+
+  <div class="wx">
+    <div class="row">
+      <div class="sun"><div class="rays" id="rays"></div><div class="core"></div><div class="cloud"></div></div>
+      <div><div class="deg">58°</div><div class="cond">Partly cloudy</div><div class="hl">H 63° · L 44° · Your city</div></div>
+    </div>
+    <div class="hours">
+      <div>Now<em>⛅</em><span>58°</span></div>
+      <div>10 PM<em>☁</em><span>55°</span></div>
+      <div>12 AM<em>☁</em><span>51°</span></div>
+      <div>2 AM<em>🌙</em><span>48°</span></div>
+      <div>Sun<em>☀</em><span>61°</span></div>
+    </div>
+  </div>
+
+  <div class="dock" id="dock"></div>
+
+  <div class="ov" id="ov">
+    <h2>Customize quick apps</h2>
+    <p>Select up to 6 apps. They appear in the dock in the order you pick them. Select one again to remove it.</p>
+    <div class="slots" id="slots"><span class="lbl">Your dock</span></div>
+    <div class="grid" id="grid"></div>
+    <div class="full" id="full">Dock is full. Remove an app first.</div>
+    <button class="done" id="done">Done</button>
+  </div>
+
+  <div class="quote"><b>Tonight</b>Sunset was at 6:31. Clear skies after midnight, a good night to project outside.</div>
+</div></div>
+
+<ul class="notes">
+  <li><b>What's new vs. the first mockup:</b> slow-moving aurora background, a live clock with a blinking colon, a sunrise→sunset progress bar, a glass weather card with an animated icon and hourly forecast, a dock you can move along with the arrow keys and labels on focus, and a rotating line of text at the bottom right.</li>
+  <li><b>Customizable quick apps:</b> the small ✎ button at the top right (press ↑ on the remote) opens a picker. Choose up to 6 apps in the order you want, and press Back or Done to save. The projector remembers your choice. In the real app, the picker lists the apps actually installed on the projector.</li>
+  <li><b>Time-of-day themes:</b> the colors shift on their own through morning, day, evening and night.</li>
+  <li>The animations only move and scale shapes, which stays smooth on the Freestyle's modest chip. If it stutters on the real projector, I can turn the background blur down.</li>
+  <li>Weather numbers here are sample data. The real app pulls them from a free weather service for your city.</li>
+</ul>
+
+<script>
+  const scr = document.getElementById('screen'), frame = document.getElementById('frame');
+  const fit = () => scr.style.transform = `scale(${frame.clientWidth/1920})`;
+  addEventListener('resize', fit); fit();
+
+  const rays = document.getElementById('rays');
+  for (let i=0;i<8;i++){ const r=document.createElement('i'); r.style.transform=`rotate(${i*45}deg)`; rays.appendChild(r); }
+
+  const greetFor = h => h<5?'Good night':h<12?'Good morning':h<17?'Good afternoon':h<21?'Good evening':'Good night';
+  function tick(){
+    const n=new Date(), h=n.getHours();
+    document.getElementById('hh').textContent = (h%12)||12;
+    document.getElementById('mm').textContent = String(n.getMinutes()).padStart(2,'0');
+    document.getElementById('ap').textContent = h<12?'AM':'PM';
+    document.getElementById('date').textContent = n.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+    document.getElementById('greet').textContent = greetFor(h);
+    const mins=h*60+n.getMinutes(), rise=7*60+24, set=18*60+31;
+    const pct=Math.max(0,Math.min(100,Math.round((mins-rise)/(set-rise)*100)));
+    document.getElementById('fill').style.width=pct+'%';
+    document.getElementById('daypct').textContent = pct>=100?'Sun has set':pct<=0?'Before sunrise':`Day ${pct}% done`;
+  }
+  tick(); setInterval(tick, 1000);
+
+  document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));
+    scr.dataset.t=b.dataset.t;
+  });
+
+  // ---- apps + dock state ----
+  const APPS = [
+    ['netflix','Netflix','N','c1'],['youtube','YouTube','Y','c2'],['disney','Disney+','D','c3'],
+    ['spotify','Spotify','S','c4'],['prime','Prime Video','P','c5'],['plex','Plex','P','c6'],
+    ['hulu','Hulu','H','c11'],['max','Max','M','c10'],['twitch','Twitch','T','c5'],
+    ['tubi','Tubi','T','c12'],['apple','Apple TV','A','c8'],['browser','Internet','I','c7'],
+  ];
+  const byId = Object.fromEntries(APPS.map(a=>[a[0],a]));
+  const MAX = 6;
+  let dock = ['netflix','youtube','disney','spotify','prime'];
+  try { const s = JSON.parse(localStorage.getItem('dock')); if (Array.isArray(s)) dock = s.filter(id=>byId[id]); } catch(e){}
+  const save = () => { try { localStorage.setItem('dock', JSON.stringify(dock)); } catch(e){} };
+
+  const dockEl = document.getElementById('dock');
+  let f = 0, items = [];
+  function renderDock(){
+    dockEl.innerHTML = '';
+    dock.forEach(id => { const [,name,l,c]=byId[id]; dockEl.insertAdjacentHTML('beforeend', `<div class="tile ${c}" data-act="app">${l}<span class="tip">${name}</span></div>`); });
+    dockEl.insertAdjacentHTML('beforeend', `<div class="sep"></div><div class="tile c8" data-act="all">⋯<span class="tip">All apps</span></div>`);
+    items = [...dockEl.querySelectorAll('.tile')];
+    f = Math.min(f, items.length-1);
+    items.forEach((t,i)=>{ t.onclick=()=>{ zone='dock'; f=i; renderFocus(); activate(); }; });
+    renderFocus();
+  }
+  // focus zones: 'dock' (bottom) or 'top' (small customize button, top right)
+  let zone = 'dock';
+  const editBtn = document.getElementById('editBtn');
+  editBtn.onclick = (e) => { e.stopPropagation(); frame.focus(); zone='top'; renderFocus(); activate(); };
+  const renderFocus = () => {
+    items.forEach((t,i)=>t.classList.toggle('focus', zone==='dock' && i===f));
+    editBtn.classList.toggle('focus', zone==='top');
+  };
+  function activate(){ if (zone==='top') openEditor(); }
+
+  // ---- customize overlay ----
+  const ov = document.getElementById('ov'), grid = document.getElementById('grid'), slots = document.getElementById('slots'), done = document.getElementById('done'), full = document.getElementById('full');
+  let g = 0, gItems = [];
+  const COLS = 6;
+  function renderEditor(){
+    grid.innerHTML = '';
+    APPS.forEach(([id,name,l,c])=>{
+      const n = dock.indexOf(id);
+      grid.insertAdjacentHTML('beforeend', `<div class="gapp ${n>=0?'sel':''}" data-id="${id}"><div class="tile ${c}" data-n="${n+1}">${l}</div>${name}</div>`);
+    });
+    slots.querySelectorAll('.slot').forEach(s=>s.remove());
+    for (let i=0;i<MAX;i++){ const a=byId[dock[i]]; slots.insertAdjacentHTML('beforeend', a?`<div class="slot tile ${a[3]}" style="border:none">${a[2]}</div>`:`<div class="slot"></div>`); }
+    gItems = [...grid.querySelectorAll('.gapp'), done];
+    gItems.forEach((el,i)=>{ el.onclick=()=>{ g=i; gFocus(); gSelect(); }; });
+    gFocus();
+  }
+  function gFocus(){ gItems.forEach((el,i)=>{ const t = el===done ? el : el.querySelector('.tile'); t.classList.toggle('focus', i===g); }); }
+  function gSelect(){
+    const el = gItems[g];
+    if (el===done) return closeEditor();
+    const id = el.dataset.id, n = dock.indexOf(id);
+    if (n>=0) dock.splice(n,1);
+    else if (dock.length < MAX) dock.push(id);
+    else { full.classList.add('show'); setTimeout(()=>full.classList.remove('show'), 1800); return; }
+    save(); renderEditor();
+  }
+  function openEditor(){ g=0; ov.classList.add('open'); renderEditor(); }
+  function closeEditor(){ ov.classList.remove('open'); f=0; zone='dock'; renderDock(); }
+
+  // ---- remote / keyboard ----
+  frame.addEventListener('keydown',e=>{
+    const k=e.key;
+    if (ov.classList.contains('open')){
+      const last=gItems.length-1, appsN=last;
+      if (k==='ArrowRight') g=Math.min(last,g+1);
+      else if (k==='ArrowLeft') g=Math.max(0,g-1);
+      else if (k==='ArrowDown') g = g+COLS < appsN ? g+COLS : last;
+      else if (k==='ArrowUp') g = g===last ? appsN-1 : Math.max(0,g-COLS);
+      else if (k==='Enter') gSelect();
+      else if (k==='Escape' || k==='Backspace') closeEditor();
+      else return;
+      e.preventDefault(); gFocus(); return;
+    }
+    if (k==='ArrowUp') zone='top';
+    else if (k==='ArrowDown') zone='dock';
+    else if (k==='ArrowRight' && zone==='dock') f=Math.min(items.length-1,f+1);
+    else if (k==='ArrowLeft' && zone==='dock') f=Math.max(0,f-1);
+    else if (k==='Enter') activate();
+    else return;
+    e.preventDefault(); renderFocus();
+  });
+  frame.addEventListener('click',()=>frame.focus());
+  renderDock();
+</script>
+</body>
+</html>
