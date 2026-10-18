@@ -37,6 +37,18 @@ test('picker horizontal movement is clamped to 0..pickerCount', () => {
 test('picker Escape closes', () => {
   assert.equal(nav('picker', 4, 'Escape').action, 'close');
 });
+test('top: Left/Right move across topCount buttons, clamped', () => {
+  const T = { ...L, topCount: 3 };
+  const t = (index, key) => navigate({ zone: 'top', index }, key, T).state;
+  assert.deepEqual(t(0, 'ArrowRight'), { zone: 'top', index: 1 });
+  assert.deepEqual(t(2, 'ArrowRight'), { zone: 'top', index: 2 });
+  assert.deepEqual(t(1, 'ArrowLeft'), { zone: 'top', index: 0 });
+  assert.deepEqual(t(0, 'ArrowLeft'), { zone: 'top', index: 0 });
+  assert.deepEqual(t(2, 'ArrowDown'), { zone: 'dock', index: 0 });
+});
+test('top: without topCount, Left/Right stay on the only button', () => {
+  assert.deepEqual(nav('top', 0, 'ArrowRight').state, { zone: 'top', index: 0 });
+});
 test('unknown key is ignored', () => {
   assert.deepEqual(nav('dock', 1, 'x'), { state: { zone: 'dock', index: 1 }, action: 'none' });
 });

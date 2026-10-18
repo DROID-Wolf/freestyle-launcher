@@ -1,6 +1,6 @@
 // Remote-control focus model. Pure: (state, key, layout) -> { state, action }.
-// Zones: 'dock' (bottom row), 'top' (small customize button), 'picker' (overlay grid;
-// index === layout.pickerCount is the Done button).
+// Zones: 'dock' (bottom row), 'top' (top-bar buttons, layout.topCount, default 1),
+// 'picker' (overlay grid; index === layout.pickerCount is the Done button).
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 
 export function navigate(state, key, layout) {
@@ -21,7 +21,10 @@ export function navigate(state, key, layout) {
   }
 
   if (zone === 'top') {
+    const last = (layout.topCount || 1) - 1;
     if (key === 'ArrowDown') return { state: { zone: 'dock', index: 0 }, action: 'none' };
+    if (key === 'ArrowRight') return { state: { zone, index: clamp(index + 1, 0, last) }, action: 'none' };
+    if (key === 'ArrowLeft') return { state: { zone, index: clamp(index - 1, 0, last) }, action: 'none' };
     return same; // Escape and other keys do nothing on the main screen
   }
 
