@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { tileHtml, colorClass, escapeHtml, withPictures, hasVisiblePixels } from '../js/icons.js';
+import { tileHtml, colorClass, escapeHtml, withPictures, hasVisiblePixels, brandIcon } from '../js/icons.js';
 
 test('withPictures keeps only apps that have a picture', () => {
   const list = [
@@ -35,6 +35,31 @@ test('a few apps sharing one picture are one app: keep one, preferring the store
     { id: '9Ur5IzDKqV.TizenYouTube', name: 'YouTube', icon: yt },
   ];
   assert.deepEqual(withPictures(list).apps.map((a) => a.id), ['org.tizen.netflix-app', '9Ur5IzDKqV.TizenYouTube']);
+});
+
+// Seen on the projector: store apps (YouTube, YouTube TV, …) report one generic picture shared by
+// 14 apps; the device has no local copy of their real logo.
+test('known services behind a placeholder picture are kept with their real logo from the web', () => {
+  const generic = 'data:image/png;base64,GENERIC';
+  const others = Array.from({ length: 12 }, (_, i) => ({ id: `Abcdefghi${i}.Thing${i}`, name: `Thing ${i}`, icon: generic }));
+  const list = [
+    { id: '9Ur5IzDKqV.TizenYouTube', name: 'YouTube', icon: generic },
+    { id: 'PvWgqxV3Xa.YouTubeTV', name: 'YouTube TV', icon: generic },
+    ...others,
+    { id: 'com.samsung.tv.cobalt-yt', name: 'Youtube', icon: null, iconError: 'no icon' },
+  ];
+  const apps = withPictures(list).apps;
+  assert.deepEqual(apps.map((a) => a.id), ['9Ur5IzDKqV.TizenYouTube', 'PvWgqxV3Xa.YouTubeTV']);
+  assert.match(apps[0].icon, /^https:\/\/.*youtube\.com/);
+  assert.match(apps[1].icon, /tv\.youtube\.com/);
+});
+
+test('brandIcon knows common services and nothing else', () => {
+  assert.match(brandIcon('Netflix'), /netflix\.com/);
+  assert.match(brandIcon('Prime Video'), /primevideo\.com/);
+  assert.match(brandIcon('Disney+'), /disneyplus\.com/);
+  assert.match(brandIcon('YouTube Kids'), /youtubekids\.com/);
+  assert.equal(brandIcon('HealthMdeSetting'), null);
 });
 
 test('without a store id, the duplicate kept is the first that is not a test/debug entry', () => {
