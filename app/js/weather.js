@@ -1,8 +1,8 @@
 // Weather: Open-Meteo URLs and pure parsing. Fetching happens in main.js.
 const FIELDS =
   'current=temperature_2m,weather_code&hourly=temperature_2m,weather_code' +
-  '&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset' +
-  '&temperature_unit=fahrenheit&timezone=auto&forecast_days=2';
+  '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset' +
+  '&temperature_unit=fahrenheit&timezone=auto&forecast_days=7';
 
 export const forecastUrl = (lat, lon) =>
   `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&${FIELDS}`;
@@ -28,6 +28,11 @@ const pad = (n) => String(n).padStart(2, '0');
 const hourKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`;
 const minutesOf = (iso) => { const [h, m] = iso.slice(11, 16).split(':').map(Number); return h * 60 + m; };
 export const hourLabel = (h) => `${h % 12 || 12} ${h < 12 ? 'AM' : 'PM'}`;
+const dayLabel = (iso, i) => {
+  if (i === 0) return 'Today';
+  const [y, mo, d] = iso.split('-').map(Number);
+  return new Date(y, mo - 1, d).toLocaleDateString('en-US', { weekday: 'short' });
+};
 
 // Open-Meteo times are local to the forecast location (timezone=auto).
 export function parseForecast(json, now) {
@@ -54,6 +59,12 @@ export function parseForecast(json, now) {
       riseMin: minutesOf(daily.sunrise[0]),
       setMin: minutesOf(daily.sunset[0]),
       hours,
+      days: daily.time.slice(0, 7).map((iso, i) => ({
+        label: dayLabel(iso, i),
+        hi: Math.round(daily.temperature_2m_max[i]),
+        lo: Math.round(daily.temperature_2m_min[i]),
+        icon: daily.weather_code ? describeCode(daily.weather_code[i]).icon : 'cloudy',
+      })),
     };
   } catch (e) {
     return null;
@@ -64,6 +75,14 @@ export function parseGeocode(json) {
   const r = json && Array.isArray(json.results) && json.results[0];
   if (!r || !Number.isFinite(r.latitude) || !Number.isFinite(r.longitude)) return null;
   return { lat: r.latitude, lon: r.longitude, name: r.name };
+}
+
+// Approximate location from the public IP (BigDataCloud's free client-side endpoint, no key).
+export const IP_LOCATION_URL = 'https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=en';
+
+export function parseIpLocation(json) {
+  if (!json || !Number.isFinite(json.latitude) || !Number.isFinite(json.longitude)) return null;
+  return { lat: json.latitude, lon: json.longitude, name: json.city || json.locality || 'Current location' };
 }
 
 export function weatherView(cache, now) {

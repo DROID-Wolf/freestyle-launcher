@@ -2,7 +2,8 @@
 // Request: {fl:1, id, method, params}. Reply: {fl:1, id, ok, result|error}.
 import { MOCK_APPS } from './mock-apps.js';
 
-export function createBridge({ target, source, timeoutMs = 2000 }) {
+// getApps gets a longer timeout: the Freestyle reports ~1,000 app entries and listing them is slow.
+export function createBridge({ target, source, timeoutMs = 2000, appsTimeoutMs = 15000 }) {
   let nextId = 1;
   const pending = new Map();
 
@@ -17,13 +18,13 @@ export function createBridge({ target, source, timeoutMs = 2000 }) {
     else p.reject(new Error(String(msg.error || 'error')));
   });
 
-  const call = (method, params) =>
+  const call = (method, params, ms = timeoutMs) =>
     new Promise((resolve, reject) => {
       const id = nextId++;
       const timer = setTimeout(() => {
         pending.delete(id);
         reject(new Error('timeout'));
-      }, timeoutMs);
+      }, ms);
       pending.set(id, { resolve, reject, timer });
       // The shell's origin varies (app:// on device, file:// in the fallback), so use '*'.
       // Nothing sensitive is sent; the shell validates our origin on its side.
@@ -31,10 +32,11 @@ export function createBridge({ target, source, timeoutMs = 2000 }) {
     });
 
   return {
-    getApps: () => call('getApps'),
+    getApps: () => call('getApps', undefined, appsTimeoutMs),
     launch: (id) => call('launch', { id }).then(() => {}),
     openSettings: () => call('openSettings').then(() => {}),
     openInputs: () => call('openInputs').then(() => {}),
+    openNetwork: () => call('openNetwork').then(() => {}),
   };
 }
 
@@ -45,6 +47,7 @@ export function mockBridge() {
     launch: (id) => (log('launch', id), Promise.resolve()),
     openSettings: () => (log('openSettings'), Promise.resolve()),
     openInputs: () => (log('openInputs'), Promise.resolve()),
+    openNetwork: () => (log('openNetwork'), Promise.resolve()),
   };
 }
 

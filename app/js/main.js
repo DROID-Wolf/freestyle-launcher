@@ -3,7 +3,7 @@ import { formatTime, formatDate, greeting, dayProgress } from './time.js';
 import { themeFor } from './theme.js';
 import { loadDock, saveDock, pruneDock } from './dock.js';
 import { navigate } from './focus.js';
-import { forecastUrl, geocodeUrl, parseForecast, parseGeocode, weatherView } from './weather.js';
+import { forecastUrl, geocodeUrl, parseForecast, parseGeocode, weatherView, IP_LOCATION_URL, parseIpLocation } from './weather.js';
 import { tickerText } from './ticker.js';
 import { pickBridge } from './bridge.js';
 import { tileHtml } from './icons.js';
@@ -13,7 +13,7 @@ import { loadPrefs, savePrefs, loadWeather, saveWeather } from './store.js';
 const WEATHER_EVERY = 15 * 60 * 1000;
 const FETCH_TIMEOUT = 10000;
 const DEFAULT_SUN = { rise: 7 * 60, set: 19 * 60 }; // until we have a forecast
-const HOUR_ICON = { clear: '☀', partly: '⛅', cloudy: '☁', fog: '🌫', rain: '🌧', snow: '❄', storm: '⛈' };
+const DAY_ICON = { clear: '☀', partly: '⛅', cloudy: '☁', fog: '🌫', rain: '🌧', snow: '❄', storm: '⛈' };
 const DROPS = { rain: '💧💧', snow: '❄❄', storm: '⚡' };
 const NAV_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Escape'];
 const TIZEN_BACK = 10009;
@@ -36,13 +36,15 @@ let prefs = loadPrefs(storage);
 let savedDock = loadDock(storage);
 let dock = savedDock || [];
 let apps = null; // null until the bridge answers; [] if it failed
+let appsError = ''; // why the last getApps failed, shown in the overlays
+let appsLoading = null; // in-flight getApps promise
 let cache = loadWeather(storage);
 let focus = { zone: 'dock', index: 0 };
 let overlay = null;
 let toastTimer = 0;
 let lastMinute = -1;
 
-const topButtons = [$('editBtn'), $('inputsBtn'), $('settingsBtn')];
+const topButtons = [$('editBtn'), $('inputsBtn'), $('wifiBtn'), $('settingsBtn')];
 const nowMin = (d) => d.getHours() * 60 + d.getMinutes();
 const fmt = (t) => `${t.h}:${t.m}${t.ampm ? ' ' + t.ampm : ''}`;
 const fmtMin = (min) => fmt(formatTime(new Date(2000, 0, 1, Math.floor(min / 60), min % 60), prefs.hour24));
@@ -91,11 +93,6 @@ const retick = () => {
 };
 
 // ---- weather ----
-const to24 = (label) => {
-  const m = /^(\d+) (AM|PM)$/.exec(label);
-  return m ? `${String((Number(m[1]) % 12) + (m[2] === 'PM' ? 12 : 0)).padStart(2, '0')}:00` : label;
-};
-
 function renderWeather() {
   const now = new Date();
   const v = weatherView(cache, now);
@@ -115,14 +112,10 @@ function renderWeather() {
   if (m < rise || m >= set) sunEl.dataset.night = '';
   else delete sunEl.dataset.night;
   $('drops').textContent = DROPS[d.icon] || '';
-  const hours = [{ label: 'Now', temp: d.temp, icon: d.icon }].concat(Array.isArray(d.hours) ? d.hours : []);
-  const isNight = (label) => {
-    const hm = label === 'Now' ? m : Number(to24(label).slice(0, 2)) * 60;
-    return hm < rise || hm >= set;
-  };
-  const icon = (h) => (h.icon === 'clear' && isNight(h.label) ? '🌙' : HOUR_ICON[h.icon] || '☁');
-  $('hours').innerHTML = hours.map((h) =>
-    `<div>${prefs.hour24 ? to24(h.label) : h.label}<em>${icon(h)}</em><span>${deg(h.temp)}</span></div>`).join('');
+  // 7-day high/low (a cache from an older version has no days: leave the row empty until refresh)
+  const days = Array.isArray(d.days) ? d.days : [];
+  $('hours').innerHTML = days.map((day) =>
+    `<div>${day.label}<em>${DAY_ICON[day.icon] || '☁'}</em><span>${deg(day.hi)}</span><small>${deg(day.lo)}</small></div>`).join('');
 
   const text = tickerText(d, now);
   $('quote').hidden = !text;
@@ -157,6 +150,38 @@ function refreshWeather() {
 }
 
 const findCity = (q) => fetchJson(geocodeUrl(q)).then(parseGeocode);
+const locateMe = () => fetchJson(IP_LOCATION_URL).then(parseIpLocation);
+
+// ---- installed apps ----
+const appsNote = () =>
+  appsLoading ? 'Loading the installed apps…' : appsError ? `Couldn't load the installed apps (${appsError}).` : '';
+
+function loadApps() {
+  if (appsLoading) return appsLoading;
+  appsLoading = bridge.getApps().then(
+    (list) => {
+      apps = (Array.isArray(list) ? list : []).filter((a) => a && typeof a.id === 'string' && typeof a.name === 'string');
+      appsError = '';
+      const ids = apps.map((a) => a.id);
+      if (savedDock) {
+        dock = pruneDock(savedDock, ids); // uninstalled apps drop out silently
+        if (dock.length !== savedDock.length) saveDock(storage, (savedDock = dock));
+      } else dock = ids.slice(0, 5);
+    },
+    (err) => {
+      // bridge failed: keep the saved dock as-is (launches will toast) and say why in the overlays
+      if (!apps) apps = [];
+      appsError = (err && err.message) || 'unknown error';
+    },
+  ).then(() => {
+    appsLoading = null;
+    if (overlay && overlay.setApps) overlay.setApps(sortedApps(), appsNote());
+    if (!overlay) renderDock();
+  });
+  return appsLoading;
+}
+
+const sortedApps = () => (apps || []).slice().sort((a, b) => a.name.localeCompare(b.name));
 
 // ---- dock and focus ----
 const appById = (id) => (apps && apps.find((a) => a.id === id)) || { id, name: id, icon: null };
@@ -193,6 +218,7 @@ function activate() {
   if (focus.zone === 'top') {
     if (focus.index === 0) openCustomize();
     else if (focus.index === 1) bridge.openInputs().catch(() => toast("Couldn't open Inputs"));
+    else if (focus.index === 2) bridge.openNetwork().catch(() => toast("Couldn't open network settings"));
     else bridge.openSettings().catch(() => toast("Couldn't open Settings"));
     return;
   }
@@ -206,11 +232,14 @@ function applyPrefs() {
 }
 
 function openCustomize() {
+  if (appsError) loadApps(); // try again: the overlay updates when it answers
   overlay = openPicker({
-    apps: apps || [],
+    apps: sortedApps(),
+    appsNote: appsNote(),
     dock: dock.slice(),
     prefs: { ...prefs },
     findCity,
+    locateMe,
     onChange(next) {
       const moved = next.prefs.lat !== prefs.lat || next.prefs.lon !== prefs.lon;
       dock = savedDock = next.dock;
@@ -235,9 +264,10 @@ function openCustomize() {
 }
 
 function openAllApps() {
-  const sorted = (apps || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+  if (appsError) loadApps();
   overlay = openAppGrid({
-    apps: sorted,
+    apps: sortedApps(),
+    appsNote: appsNote(),
     onLaunch: launch,
     onClose() {
       overlay = null;
@@ -295,21 +325,7 @@ fit();
 applyPrefs();
 renderDock();
 
-bridge.getApps().then(
-  (list) => {
-    apps = (Array.isArray(list) ? list : []).filter((a) => a && typeof a.id === 'string' && typeof a.name === 'string');
-    const ids = apps.map((a) => a.id);
-    if (savedDock) {
-      dock = pruneDock(savedDock, ids); // uninstalled apps drop out silently
-      if (dock.length !== savedDock.length) saveDock(storage, (savedDock = dock));
-    } else dock = ids.slice(0, 5);
-    renderDock();
-  },
-  () => {
-    apps = []; // bridge timeout: keep the saved dock as-is, launches will toast
-    renderDock();
-  },
-);
+loadApps();
 
 refreshWeather();
 setInterval(tick, 1000);

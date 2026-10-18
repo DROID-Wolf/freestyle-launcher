@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { forecastUrl, geocodeUrl, parseForecast, parseGeocode, describeCode, weatherView } from '../js/weather.js';
+import { forecastUrl, geocodeUrl, parseForecast, parseGeocode, describeCode, weatherView, IP_LOCATION_URL, parseIpLocation } from '../js/weather.js';
 import { tickerText } from '../js/ticker.js';
 
 const fx = JSON.parse(readFileSync(new URL('./fixtures/open-meteo.json', import.meta.url)));
@@ -12,8 +12,28 @@ const clone = (o) => JSON.parse(JSON.stringify(o));
 test('forecastUrl includes coords, fahrenheit and needed fields', () => {
   const u = forecastUrl(40.71, -74.01);
   assert.ok(u.startsWith('https://api.open-meteo.com/v1/forecast?'));
-  for (const part of ['latitude=40.71', 'longitude=-74.01', 'temperature_unit=fahrenheit', 'timezone=auto', 'forecast_days=2', 'sunrise', 'sunset', 'weather_code'])
+  for (const part of ['latitude=40.71', 'longitude=-74.01', 'temperature_unit=fahrenheit', 'timezone=auto', 'forecast_days=7', 'sunrise', 'sunset', 'weather_code'])
     assert.ok(u.includes(part), part);
+  assert.match(u, /daily=[^&]*weather_code/);
+});
+test('parseForecast reads 7 days of high/low, starting with Today', () => {
+  const w = parseForecast(fx, NOW);
+  assert.equal(w.days.length, 7);
+  assert.deepEqual(w.days.map((d) => d.label), ['Today', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri']);
+  assert.deepEqual(w.days[0], { label: 'Today', hi: 63, lo: 44, icon: 'partly' });
+  assert.equal(w.days[2].icon, 'rain');
+  for (const d of w.days) assert.ok(Number.isFinite(d.hi) && Number.isFinite(d.lo));
+});
+test('parseForecast tolerates a forecast without daily weather codes', () => {
+  const noCodes = clone(fx); delete noCodes.daily.weather_code;
+  assert.equal(parseForecast(noCodes, NOW).days[0].icon, 'cloudy');
+});
+test('IP location: url and parser', () => {
+  assert.ok(IP_LOCATION_URL.startsWith('https://'));
+  assert.deepEqual(parseIpLocation({ latitude: 40.79, longitude: -77.86, city: 'State College', locality: 'x' }), { lat: 40.79, lon: -77.86, name: 'State College' });
+  assert.deepEqual(parseIpLocation({ latitude: 40.37, longitude: -76.33, city: '', locality: 'Township of Jackson' }), { lat: 40.37, lon: -76.33, name: 'Township of Jackson' });
+  assert.equal(parseIpLocation({ city: 'Nowhere' }), null);
+  assert.equal(parseIpLocation(null), null);
 });
 test('geocodeUrl encodes the city', () => {
   assert.equal(geocodeUrl('State College'), 'https://geocoding-api.open-meteo.com/v1/search?name=State%20College&count=1');

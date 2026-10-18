@@ -84,11 +84,13 @@ test('a synchronous tizen exception replies ok:false', async () => {
   assert.deepEqual(replies, [{ fl: 1, id: 5, ok: false, error: 'bad id' }]);
 });
 
-test('openSettings and openInputs launch the system apps', async () => {
+// App IDs read from the Freestyle 2nd Gen's own app list (sdb shell 0 applist).
+test('openSettings, openInputs and openNetwork launch the system apps', async () => {
   const tizen = fakeTizen();
   await run({ fl: 1, id: 8, method: 'openSettings' }, { tizen });
   await run({ fl: 1, id: 9, method: 'openInputs' }, { tizen });
-  assert.deepEqual(tizen.launched, ['com.samsung.tv.menu', 'org.tizen.tv-source']);
+  await run({ fl: 1, id: 10, method: 'openNetwork' }, { tizen });
+  assert.deepEqual(tizen.launched, ['com.samsung.tv.coba.setting', 'org.tizen.SMSourceAPP', 'com.samsung.tv.coba.setting.networksettings']);
 });
 
 test('unknown method replies ok:false "unknown method"', async () => {

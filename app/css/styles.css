@@ -74,9 +74,11 @@ body { color:#f2f2f4; font-family:Outfit, system-ui, sans-serif; }
 .sun[data-night] .core { background:radial-gradient(circle,#f4f6ff,#c3cbe8); box-shadow:0 0 50px #c3cbe866; }
 .sun[data-night] .rays { display:none; }
 .hours { display:flex; justify-content:space-between; margin-top:40px; padding-top:30px; border-top:1px solid rgba(255,255,255,.1); }
-.hours div { text-align:center; font-size:22px; color:rgba(255,255,255,.55); }
-.hours div span { display:block; font-size:30px; color:#fff; margin-top:8px; }
+/* 7-day forecast: label, icon, high, low */
+.hours div { flex:1; text-align:center; font-size:20px; color:rgba(255,255,255,.55); }
 .hours div em { display:block; font-style:normal; font-size:26px; margin-top:6px; }
+.hours div span { display:block; font-size:28px; color:#fff; margin-top:8px; }
+.hours div small { display:block; font-size:22px; margin-top:4px; }
 
 /* dock */
 .dock { position:absolute; left:120px; bottom:90px; display:flex; align-items:center; gap:26px; padding:22px 28px; border-radius:36px;
@@ -124,12 +126,13 @@ body { color:#f2f2f4; font-family:Outfit, system-ui, sans-serif; }
 .full.show { opacity:1; }
 
 /* preferences form */
-.form { margin-top:44px; display:flex; flex-direction:column; gap:22px; max-width:1100px; }
+.form { margin-top:44px; display:flex; flex-direction:column; gap:22px; max-width:1500px; }
+.field #pfCity { width:440px; }
 .field { display:flex; align-items:center; gap:24px; font-size:28px; }
 .field label { width:220px; color:rgba(255,255,255,.6); }
 .field input { font:inherit; font-size:28px; color:#fff; background:rgba(255,255,255,.08); border:2px solid rgba(255,255,255,.15); border-radius:18px; padding:14px 22px; width:520px; outline:none; transition:transform .2s; }
 .field input.focus { border-color:#fff; transform:scale(1.03); }
-.btn { font-size:26px; padding:14px 34px; border-radius:999px; background:rgba(255,255,255,.12); cursor:pointer; transition:transform .2s; }
+.btn { white-space:nowrap; font-size:26px; padding:14px 34px; border-radius:999px; background:rgba(255,255,255,.12); cursor:pointer; transition:transform .2s; }
 .btn.focus { background:#fff; color:#111; transform:scale(1.08); }
 .status { font-size:22px; color:rgba(255,255,255,.55); }
 .toggle { display:flex; align-items:center; gap:20px; cursor:pointer; padding:8px 14px; margin-left:-14px; border-radius:18px; transition:transform .2s; }

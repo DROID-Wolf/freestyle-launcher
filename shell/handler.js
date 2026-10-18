@@ -1,8 +1,10 @@
 // Shell side of the postMessage bridge. Classic script (no import/export): the widget loads
 // it from file://, where ES modules are unreliable. Declares the global `handleMessage`.
 // Request: {fl:1, id, method, params}. Reply: {fl:1, id, ok, result|error}.
-var SETTINGS_APP = 'com.samsung.tv.menu';
-var INPUTS_APP = 'org.tizen.tv-source';
+// System app IDs from the Freestyle 2nd Gen's own app list (sdb shell 0 applist).
+var SETTINGS_APP = 'com.samsung.tv.coba.setting';
+var INPUTS_APP = 'org.tizen.SMSourceAPP';
+var NETWORK_APP = 'com.samsung.tv.coba.setting.networksettings';
 
 function handleMessage(event, opts) {
   var data = event.data;
@@ -42,6 +44,7 @@ function handleMessage(event, opts) {
     launch: function (params) { return launch(params && params.id); },
     openSettings: function () { return launch(SETTINGS_APP); },
     openInputs: function () { return launch(INPUTS_APP); },
+    openNetwork: function () { return launch(NETWORK_APP); },
   };
 
   var method = Object.prototype.hasOwnProperty.call(methods, data.method) ? methods[data.method] : null;

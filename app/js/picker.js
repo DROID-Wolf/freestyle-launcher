@@ -5,7 +5,10 @@ import { toggleApp, MAX_DOCK } from './dock.js';
 import { tileHtml, escapeHtml } from './icons.js';
 
 const COLS = 6;
-const PREF_ROWS = ['name', 'city', 'find', 'hour24', 'reduceMotion', 'done'];
+// Preferences rows by index; city, find and locate share one line (Left/Right move between them).
+const PREF_ROWS = ['name', 'city', 'find', 'locate', 'hour24', 'reduceMotion', 'done'];
+const CITY_LINE = [1, 2, 3];
+const appsMsg = (note) => `<div class="msg">${escapeHtml(note || "Couldn't load the installed apps.")}</div>`;
 
 const mount = (root, cls) => {
   const el = document.createElement('div');
@@ -19,7 +22,7 @@ const scrollToFocus = (el) => {
   if (f && f.scrollIntoView) f.scrollIntoView({ block: 'nearest' });
 };
 
-export function openPicker({ apps, dock, prefs, onChange, onClose, findCity, root = document.getElementById('screen') }) {
+export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose, findCity, locateMe, root = document.getElementById('screen') }) {
   const el = mount(root, 'pick');
   let tab = 'apps';
   let row = 'body'; // 'tabs' | 'body'
@@ -27,7 +30,7 @@ export function openPicker({ apps, dock, prefs, onChange, onClose, findCity, roo
   let status = '';
   let fullTimer = 0;
   let cityDraft = prefs.city;
-  const byId = new Map(apps.map((a) => [a.id, a]));
+  let byId = new Map(apps.map((a) => [a.id, a]));
 
   const emit = () => onChange({ dock: dock.slice(), prefs: { ...prefs } });
   const editingInput = () => {
@@ -51,7 +54,7 @@ export function openPicker({ apps, dock, prefs, onChange, onClose, findCity, roo
     }).join('');
     return `<p>Select up to ${MAX_DOCK} apps. They appear in the dock in the order you pick them. Select one again to remove it.</p>
       <div class="slots"><span class="lbl">Your dock</span>${slots.join('')}</div>
-      ${apps.length ? `<div class="gridwrap"><div class="grid">${grid}</div></div>` : '<div class="msg">Couldn\'t load the installed apps.</div>'}
+      ${apps.length ? `<div class="gridwrap"><div class="grid">${grid}</div></div>` : appsMsg(appsNote)}
       <div class="full">Dock is full. Remove an app first.</div>`;
   }
 
@@ -62,10 +65,11 @@ export function openPicker({ apps, dock, prefs, onChange, onClose, findCity, roo
       <div class="form">
         <div class="field"><label>Name</label><input id="pfName" data-i="0" class="${isFocus('body', 0)}" value="${escapeHtml(prefs.name)}" maxlength="30"></div>
         <div class="field"><label>City</label><input id="pfCity" data-i="1" class="${isFocus('body', 1)}" value="${escapeHtml(cityDraft)}" maxlength="60">
-          <div class="btn${isFocus('body', 2)}" data-i="2">Find</div></div>
+          <div class="btn${isFocus('body', 2)}" data-i="2">Find</div>
+          <div class="btn${isFocus('body', 3)}" data-i="3">Use current location</div></div>
         <div class="field"><label></label><span class="status">${escapeHtml(status)}</span></div>
-        <div class="field"><label>Clock</label>${toggle('hour24', 3, '24-hour time')}</div>
-        <div class="field"><label>Motion</label>${toggle('reduceMotion', 4, 'Reduce motion')}</div>
+        <div class="field"><label>Clock</label>${toggle('hour24', 4, '24-hour time')}</div>
+        <div class="field"><label>Motion</label>${toggle('reduceMotion', 5, 'Reduce motion')}</div>
       </div>`;
   }
 
@@ -86,21 +90,20 @@ export function openPicker({ apps, dock, prefs, onChange, onClose, findCity, roo
     fullTimer = setTimeout(() => f.classList.remove('show'), 1800);
   }
 
-  function find() {
-    const q = cityDraft.trim();
-    if (!q) return;
-    status = 'Searching…';
+  // Shared by Find and Use current location: lookup() resolves {lat, lon, name} or null.
+  function setLocation(lookup, busy, found, missing) {
+    status = busy;
     render();
-    Promise.resolve(findCity(q)).then(
+    Promise.resolve().then(lookup).then(
       (r) => {
         if (r) {
           prefs.city = r.name;
           prefs.lat = r.lat;
           prefs.lon = r.lon;
           cityDraft = r.name;
-          status = `Found ${r.name}`;
+          status = found(r.name);
           emit();
-        } else status = 'City not found';
+        } else status = missing;
         if (el.isConnected) render();
       },
       () => {
@@ -109,6 +112,15 @@ export function openPicker({ apps, dock, prefs, onChange, onClose, findCity, roo
       },
     );
   }
+
+  function find() {
+    const q = cityDraft.trim();
+    if (q) setLocation(() => findCity(q), 'Searching…', (name) => `Found ${name}`, 'City not found');
+  }
+
+  const locate = () =>
+    setLocation(locateMe, 'Finding your location…', (name) => `Using ${name} (approximate, from your internet connection)`,
+      'Couldn\'t work out your location. Type your city instead.');
 
   function activate() {
     if (row === 'tabs') return;
@@ -126,6 +138,7 @@ export function openPicker({ apps, dock, prefs, onChange, onClose, findCity, roo
       input.focus();
       input.setSelectionRange(input.value.length, input.value.length);
     } else if (what === 'find') find();
+    else if (what === 'locate') locate();
     else {
       prefs[what] = !prefs[what];
       emit();
@@ -147,10 +160,23 @@ export function openPicker({ apps, dock, prefs, onChange, onClose, findCity, roo
       idx = navigate({ zone: 'picker', index: idx }, key, { pickerCount: apps.length, pickerCols: COLS }).state.index;
       return;
     }
-    if (key === 'ArrowUp') idx === 0 ? ((row = 'tabs'), (idx = 1)) : (idx = idx === 3 ? 1 : idx - 1);
-    else if (key === 'ArrowDown') idx = Math.min(PREF_ROWS.length - 1, idx === 1 ? 3 : idx + 1);
-    else if (key === 'ArrowRight' && idx === 1) idx = 2;
-    else if (key === 'ArrowLeft' && idx === 2) idx = 1;
+    const onCityLine = CITY_LINE.indexOf(idx) >= 0;
+    const below = CITY_LINE[CITY_LINE.length - 1] + 1;
+    if (key === 'ArrowUp') {
+      if (idx === 0) (row = 'tabs'), (idx = 1);
+      else idx = onCityLine ? 0 : idx === below ? 1 : idx - 1;
+    } else if (key === 'ArrowDown') idx = onCityLine ? below : Math.min(PREF_ROWS.length - 1, idx + 1);
+    else if (key === 'ArrowRight' && onCityLine) idx = Math.min(idx + 1, below - 1);
+    else if (key === 'ArrowLeft' && onCityLine) idx = Math.max(idx - 1, CITY_LINE[0]);
+  }
+
+  // main.js calls this when getApps answers (or fails again) while the picker is open.
+  function setApps(list, note) {
+    apps = list;
+    appsNote = note;
+    byId = new Map(apps.map((a) => [a.id, a]));
+    if (tab === 'apps' && row === 'body') idx = Math.min(idx, apps.length);
+    if (el.isConnected) render();
   }
 
   function handleKey(key) {
@@ -210,10 +236,10 @@ export function openPicker({ apps, dock, prefs, onChange, onClose, findCity, roo
   });
 
   render();
-  return { handleKey, close };
+  return { handleKey, close, setApps };
 }
 
-export function openAppGrid({ apps, onLaunch, onClose, root = document.getElementById('screen') }) {
+export function openAppGrid({ apps, appsNote = '', onLaunch, onClose, root = document.getElementById('screen') }) {
   const el = mount(root, 'apps');
   let idx = 0;
 
@@ -221,7 +247,7 @@ export function openAppGrid({ apps, onLaunch, onClose, root = document.getElemen
     const grid = apps.map((a, i) =>
       `<div class="gapp" data-i="${i}">${tileHtml(a, idx === i ? 'focus' : '')}${escapeHtml(a.name)}</div>`).join('');
     el.innerHTML = `<h2>All apps</h2>
-      ${apps.length ? `<div class="gridwrap"><div class="grid">${grid}</div></div>` : '<div class="msg">Couldn\'t load the installed apps.</div>'}
+      ${apps.length ? `<div class="gridwrap"><div class="grid">${grid}</div></div>` : appsMsg(appsNote)}
       <div class="done${idx === apps.length ? ' focus' : ''}" data-i="${apps.length}">Close</div>`;
     scrollToFocus(el);
   }
@@ -256,6 +282,13 @@ export function openAppGrid({ apps, onLaunch, onClose, root = document.getElemen
     activate();
   });
 
+  function setApps(list, note) {
+    apps = list;
+    appsNote = note;
+    idx = Math.min(idx, apps.length);
+    if (el.isConnected) render();
+  }
+
   render();
-  return { handleKey, close };
+  return { handleKey, close, setApps };
 }

@@ -41,13 +41,40 @@ test('launch sends the app id as params', async () => {
   assert.deepEqual(sent[0].params, { id: 'netflix' });
 });
 
-test('openSettings and openInputs send their methods', async () => {
+test('openSettings, openInputs and openNetwork send their methods', async () => {
   const { target, source, sent } = fakePair((m) => ({ fl: 1, id: m.id, ok: true }));
   const bridge = createBridge({ target, source, timeoutMs: 50 });
   await bridge.openSettings();
   await bridge.openInputs();
-  assert.deepEqual(sent.map((m) => m.method), ['openSettings', 'openInputs']);
+  await bridge.openNetwork();
+  assert.deepEqual(sent.map((m) => m.method), ['openSettings', 'openInputs', 'openNetwork']);
   assert.notEqual(sent[0].id, sent[1].id);
+});
+
+test('getApps gets its own, longer timeout (big app lists are slow on the device)', async () => {
+  const { target, source } = fakePair(() => null);
+  const bridge = createBridge({ target, source, timeoutMs: 20, appsTimeoutMs: 120 });
+  const t0 = Date.now();
+  await assert.rejects(bridge.launch('x'), (err) => err.message === 'timeout');
+  assert.ok(Date.now() - t0 < 100);
+  const t1 = Date.now();
+  await assert.rejects(bridge.getApps(), (err) => err.message === 'timeout');
+  assert.ok(Date.now() - t1 >= 110);
+});
+
+test('a slow getApps reply inside appsTimeoutMs still resolves', async () => {
+  const source = new EventTarget();
+  const target = {
+    postMessage(m) {
+      setTimeout(() => {
+        const e = new Event('message');
+        e.data = { fl: 1, id: m.id, ok: true, result: [] };
+        source.dispatchEvent(e);
+      }, 60);
+    },
+  };
+  const bridge = createBridge({ target, source, timeoutMs: 20, appsTimeoutMs: 200 });
+  assert.deepEqual(await bridge.getApps(), []);
 });
 
 test('reply with ok:false rejects with the error', async () => {
@@ -58,19 +85,19 @@ test('reply with ok:false rejects with the error', async () => {
 
 test('no reply within the timeout rejects with timeout', async () => {
   const { target, source } = fakePair(() => null);
-  const bridge = createBridge({ target, source, timeoutMs: 50 });
+  const bridge = createBridge({ target, source, timeoutMs: 50, appsTimeoutMs: 50 });
   await assert.rejects(bridge.getApps(), (err) => err.message === 'timeout');
 });
 
 test('replies with a non-matching id are ignored', async () => {
   const { target, source } = fakePair((m) => ({ fl: 1, id: m.id + 1000, ok: true, result: [] }));
-  const bridge = createBridge({ target, source, timeoutMs: 50 });
+  const bridge = createBridge({ target, source, timeoutMs: 50, appsTimeoutMs: 50 });
   await assert.rejects(bridge.getApps(), (err) => err.message === 'timeout');
 });
 
 test('non-bridge messages (no fl, key forwards) are ignored', async () => {
   const { target, source, deliver } = fakePair(() => null);
-  const bridge = createBridge({ target, source, timeoutMs: 50 });
+  const bridge = createBridge({ target, source, timeoutMs: 50, appsTimeoutMs: 50 });
   const p = bridge.getApps();
   deliver({ fl: 1, key: 'Escape' });
   deliver(null);
@@ -100,6 +127,7 @@ test('mockBridge returns copies of MOCK_APPS and resolves the other calls', asyn
     await bridge.launch('netflix');
     await bridge.openSettings();
     await bridge.openInputs();
+    await bridge.openNetwork();
   } finally {
     console.log = log;
   }
@@ -113,7 +141,7 @@ test('pickBridge uses the real bridge inside a frame and the mock at top level',
   const sent = [];
   const parent = { postMessage: (m) => sent.push(m) };
   const framed = { parent, addEventListener() {} };
-  pickBridge(framed).getApps().catch(() => {});
+  pickBridge(framed).openSettings().catch(() => {}); // not getApps: its 15 s timer would hold the run open
   assert.equal(sent.length, 1);
-  assert.equal(sent[0].method, 'getApps');
+  assert.equal(sent[0].method, 'openSettings');
 });

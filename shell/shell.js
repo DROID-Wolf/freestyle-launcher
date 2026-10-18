@@ -6,7 +6,9 @@
   var ONLINE_TIMEOUT = 4000;
   var BACK = 10009;
   var frame = document.getElementById('app');
-  var allowedOrigins = ['https://droid-wolf.github.io', location.origin];
+  // The bundled fallback runs from file://, which browsers report as 'file://' or 'null'.
+  // That's only safe because the message listener also requires e.source === our own iframe.
+  var allowedOrigins = ['https://droid-wolf.github.io', location.origin, 'file://', 'null'];
 
   // Arrows, Enter and Back reach a TV web app without registration. Register any extra
   // remote keys here if the UI ever uses them (e.g. 'MediaPlayPause').
