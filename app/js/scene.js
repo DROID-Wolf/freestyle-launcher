@@ -39,24 +39,49 @@ export function createSceneRenderer(screenEl, { mediaUrl, timeoutMs = 8000 }) {
   let generation = 0; // bumps on every new scene so a late-loading room can't land in a newer one
   let dim = 0; // % the room picture is darkened (the videos never are)
   let roomEl = null; // the room on screen: keyed canvas, or the plain picture if canvas failed
-  let roomPixels = null; // the keyed room, undimmed, so the dim can be redrawn
+  let roomKeyed = false; // roomEl is the keyed canvas
+  // The keyed room, undimmed, so the dim can be redrawn. Only held while dimmed (8 MB): when
+  // undimmed the canvas itself is the clean copy, read back on the next dim.
+  let roomPixels = null;
   let shown = []; // the current scene's <video> elements
+  let clips = []; // the clip id each of them is playing
+  let frame = null; // what a clip change can't touch: theme, room, layout and slots
 
   // Paint the dim on the room once (not per frame). On the canvas, black goes only over the
   // room's own pixels (source-atop), so the cut-out openings stay clear for the videos.
   function paintDim() {
     if (!roomEl) return;
-    if (!roomPixels) {
+    if (!roomKeyed) {
       roomEl.style.filter = dim ? `brightness(${1 - dim / 100})` : '';
       return;
     }
     const g = roomEl.getContext('2d');
+    if (!dim) {
+      if (roomPixels) g.putImageData(roomPixels, 0, 0);
+      roomPixels = null;
+      return;
+    }
+    if (!roomPixels) roomPixels = g.getImageData(0, 0, W, H);
     g.putImageData(roomPixels, 0, 0);
-    if (!dim) return;
     g.globalCompositeOperation = 'source-atop';
     g.fillStyle = `rgba(0,0,0,${dim / 100})`;
     g.fillRect(0, 0, W, H);
     g.globalCompositeOperation = 'source-over';
+  }
+
+  const unload = (v) => { v.pause(); v.removeAttribute('src'); v.load(); };
+
+  // Start a clip in a <video>. Without a room the first video is the whole scene, so it decides
+  // readiness and failure (with a room, a broken video just leaves its poster in the opening).
+  function loadClip(video, clipId, decides, ready, fail) {
+    const clip = CLIPS[clipId];
+    video.autoplay = !paused;
+    video.poster = mediaUrl(clip.poster);
+    if (decides) {
+      video.addEventListener('loadeddata', ready, { once: true });
+      video.addEventListener('error', fail, { once: true });
+    }
+    video.src = mediaUrl(clip.video);
   }
 
   const setClasses = (themeId, layout) => {
@@ -71,62 +96,69 @@ export function createSceneRenderer(screenEl, { mediaUrl, timeoutMs = 8000 }) {
     screenEl.classList.add('scene-fallback');
   };
 
-  function apply(themeId, spec) {
-    const k = `${themeId}|${sceneKey(spec)}`;
-    if (k === key) return; // same scene (e.g. a weather refresh): keep the videos playing
-    key = k;
+  // Ready once the room picture has loaded (a slow video shows its poster until it plays: the
+  // forest clip is one 20 MB chunk and can take longer than the timeout on the projector's
+  // Wi-Fi), or, with no room, once the first video's first frame has. Events from a scene
+  // that has since been replaced are ignored. Arriving after the timeout still counts: the
+  // fallback is lifted, so a slow start at power-on doesn't leave Aurora up for good.
+  function arm() {
     const gen = ++generation;
     clearTimeout(timer);
     screenEl.classList.remove('scene-fallback');
-    setClasses(themeId, spec.layout);
-    // Unload the old videos before dropping them: a detached <video> keeps its decoder until
-    // garbage collection, and the TV has only a few.
-    shown.forEach((v) => { v.pause(); v.removeAttribute('src'); v.load(); });
-    shown = [];
-    host.innerHTML = '';
-    roomEl = null;
-    roomPixels = null;
-    if (!spec.room && !spec.videos.length) return;
-
-    // Ready once the room picture has loaded (a slow video shows its poster until it plays: the
-    // forest clip is one 20 MB chunk and can take longer than the timeout on the projector's
-    // Wi-Fi), or, with no room, once the first video's first frame has. Events from a scene
-    // that has since been replaced are ignored. Arriving after the timeout still counts: the
-    // fallback is lifted, so a slow start at power-on doesn't leave Aurora up for good.
+    timer = setTimeout(fallback, timeoutMs);
     const ready = () => {
       if (gen !== generation) return;
       clearTimeout(timer);
       screenEl.classList.remove('scene-fallback');
     };
     const fail = () => { if (gen === generation) fallback(); };
-    timer = setTimeout(fallback, timeoutMs);
+    return { gen, ready, fail };
+  }
 
-    const slots = spec.videos.map((v, i) => {
-      const clip = CLIPS[v.clip];
-      const slot = document.createElement('div');
-      slot.className = `slot slot-${v.slot}`;
-      if (spec.room) slot.style.visibility = 'hidden'; // shown once the room says where
-      const video = document.createElement('video');
-      video.muted = true;
-      video.loop = true;
-      video.playsInline = true;
-      video.autoplay = !paused;
-      video.preload = 'auto';
-      video.poster = mediaUrl(clip.poster);
-      // With a room, a broken video just leaves its poster in the opening; without one, the
-      // video is the whole scene, so it decides readiness and failure.
-      if (i === 0 && !spec.room) {
-        video.addEventListener('loadeddata', ready, { once: true });
-        video.addEventListener('error', fail, { once: true });
-      }
-      video.src = mediaUrl(clip.video);
-      shown.push(video);
-      slot.appendChild(video);
-      host.appendChild(slot);
-      return slot;
+  // Only the clips changed (Live view at sunrise/sunset or when the weather turns): swap each
+  // changed slot's video in place, keeping the keyed room (no reload, re-key or Aurora flash).
+  function swapClips(spec) {
+    const room = !!spec.room;
+    // With a room, readiness is the room's (which may still be loading: leave its generation
+    // alone so it can land). Without one, the new first clip decides it afresh.
+    const r = room ? null : arm();
+    spec.videos.forEach((v, i) => {
+      const video = shown[i];
+      if (clips[i] === v.clip) return;
+      unload(video);
+      clips[i] = v.clip;
+      loadClip(video, v.clip, i === 0 && !room, r && r.ready, r && r.fail);
     });
+  }
 
-    // The room goes on top of the videos; its cut-out openings let them show through.
+  function apply(themeId, spec) {
+    const k = `${themeId}|${sceneKey(spec)}`;
+    if (k === key) return; // same scene (e.g. a weather refresh): keep the videos playing
+    key = k;
+    const f = JSON.stringify([themeId, spec.layout, spec.room, spec.videos.map((v) => v.slot)]);
+    if (f === frame && shown.length) return swapClips(spec);
+    frame = f;
+    clearTimeout(timer);
+    setClasses(themeId, spec.layout);
+    // Unload the old videos before dropping them: a detached <video> keeps its decoder until
+    // garbage collection, and the TV has only a few.
+    shown.forEach(unload);
+    shown = [];
+    clips = [];
+    host.innerHTML = '';
+    roomEl = null;
+    roomKeyed = false;
+    roomPixels = null;
+    if (!spec.room && !spec.videos.length) {
+      ++generation; // a room still loading for the old scene must not land
+      screenEl.classList.remove('scene-fallback');
+      return;
+    }
+    const { gen, ready, fail } = arm();
+    let slots = [];
+
+    // The room goes on top of the videos; its cut-out openings let them show through. Its
+    // download starts first so it isn't queued behind the (much bigger) clips at boot.
     if (spec.room) {
       const img = new Image();
       img.onload = () => {
@@ -135,7 +167,8 @@ export function createSceneRenderer(screenEl, { mediaUrl, timeoutMs = 8000 }) {
         try {
           const cut = cutOutRoom(img, slots.length, ROOM_SPILL[spec.room]);
           room = cut.canvas;
-          roomPixels = cut.pixels;
+          roomKeyed = true;
+          if (dim) roomPixels = cut.pixels;
           if (cut.boxes) slots.forEach((s, i) => place(s, cut.boxes[i]));
         } catch (e) {
           img.className = 'room'; // canvas unavailable: show the plain picture
@@ -149,6 +182,23 @@ export function createSceneRenderer(screenEl, { mediaUrl, timeoutMs = 8000 }) {
       img.onerror = fail;
       img.src = mediaUrl(spec.room);
     }
+
+    slots = spec.videos.map((v, i) => {
+      const slot = document.createElement('div');
+      slot.className = `slot slot-${v.slot}`;
+      if (spec.room) slot.style.visibility = 'hidden'; // shown once the room says where
+      const video = document.createElement('video');
+      video.muted = true;
+      video.loop = true;
+      video.playsInline = true;
+      video.preload = 'auto';
+      loadClip(video, v.clip, i === 0 && !spec.room, ready, fail);
+      shown.push(video);
+      clips.push(v.clip);
+      slot.appendChild(video);
+      host.appendChild(slot); // the room loads after this, so it is appended on top
+      return slot;
+    });
   }
 
   // Reduce motion: hold every video on a still frame.

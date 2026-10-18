@@ -112,7 +112,8 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
   }
 
   // "Dim room" slider: darkens the room picture only; the window/fire/tank videos stay as bright.
-  const hasDim = () => cardTheme().id !== 'aurora';
+  // Shown while a scene theme is applied (not merely focused), since it acts on what's on screen.
+  const hasDim = () => prefs.theme !== 'aurora';
   function dimHtml() {
     const pct = prefs.roomDim || 0;
     return `<div class="orow"><span class="lbl">Dim room</span>

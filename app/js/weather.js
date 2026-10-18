@@ -85,6 +85,14 @@ export function parseIpLocation(json) {
   return { lat: json.latitude, lon: json.longitude, name: json.city || json.locality || 'Current location' };
 }
 
+// The cached icon for the Live view, or null once it is too old to trust (then the view
+// follows day/night only, rather than showing last night's storm all day).
+const LIVE_ICON_MAX_AGE = 6 * 3600e3;
+export function liveIcon(cache, now) {
+  if (!cache || !cache.data || !cache.data.icon) return null;
+  return now.getTime() - cache.fetchedAt <= LIVE_ICON_MAX_AGE ? cache.data.icon : null;
+}
+
 export function weatherView(cache, now) {
   if (!cache || !cache.data || !Number.isFinite(cache.data.temp)) return { show: false, stale: '' };
   const mins = Math.floor((now.getTime() - cache.fetchedAt) / 60000);

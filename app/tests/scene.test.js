@@ -1,4 +1,4 @@
-import { test, mock } from 'node:test';
+﻿import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { createSceneRenderer } from '../js/scene.js';
 
@@ -9,19 +9,22 @@ let canvasOK = false;
 const makeCtx = () => ({
   ops: [], fillStyle: '', globalCompositeOperation: 'source-over',
   drawImage() {}, clearRect() {},
-  getImageData: (x, y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) }),
+  getImageData(x, y, w, h) { this.ops.push(['get']); return { data: new Uint8ClampedArray(w * h * 4) }; },
   putImageData() { this.ops.push(['put']); },
   fillRect() { this.ops.push(['fill', this.fillStyle, this.globalCompositeOperation]); },
 });
+const srcLog = []; // [tag, url] for every src set, in order (what starts downloading first)
 class El {
   constructor(tag) { this.tag = tag; this.children = []; this.style = {}; this.className = ''; this.listeners = {}; }
+  get src() { return this._src; }
+  set src(v) { this._src = v; srcLog.push([this.tag, v]); }
   appendChild(c) { this.children.push(c); return c; }
   set innerHTML(_) { this.children = []; }
   addEventListener(type, fn) { this.listeners[type] = fn; }
   emit(type) { this.listeners[type]?.(); }
   getContext() { if (!canvasOK) throw new Error('no canvas'); return this.ctx || (this.ctx = makeCtx()); }
   querySelectorAll() { return []; }
-  removeAttribute(a) { delete this[a]; }
+  removeAttribute(a) { if (a === 'src') this._src = undefined; else delete this[a]; }
   pause() { this.paused = true; }
   load() { this.reloaded = true; }
 }
@@ -32,6 +35,7 @@ globalThis.Image = class extends El { constructor() { super('img'); this.natural
 function setup(canDraw = false) {
   canvasOK = canDraw;
   images.length = 0;
+  srcLog.length = 0;
   const host = new El('div');
   const cls = new Set();
   const screen = {
@@ -168,7 +172,67 @@ test('leaving a scene unloads its videos so the TV frees their decoders', () => 
   assert.equal(old.length, 2);
   for (const v of old) {
     assert.equal(v.paused, true);
-    assert.equal('src' in v, false);
+    assert.equal(v.src, undefined);
     assert.equal(v.reloaded, true);
   }
+});
+
+const cabinView = (clip) => ({ ...cabin, videos: [{ slot: 'view', clip }, cabin.videos[1]] });
+
+test('a Live-view clip change swaps the video in place and keeps the keyed room', () => {
+  const { r, room, videos } = setup(true);
+  r.apply('cabin', cabin);
+  images[0].onload();
+  const canvas = room();
+  const [view, fire] = videos();
+  r.apply('cabin', cabinView('beach'));
+  assert.equal(images.length, 1); // the room picture isn't fetched or keyed again
+  assert.equal(room(), canvas);
+  assert.deepEqual(videos(), [view, fire]);
+  assert.equal(view.reloaded, true); // the old clip was unloaded first
+  assert.equal(view.src, 'media/video/beach.mp4');
+  assert.equal(fire.reloaded, undefined); // an unchanged slot keeps playing
+});
+
+test('a clip change before the room has loaded still lets the room land', () => {
+  const { r, room, videos, cls } = setup(true);
+  r.apply('cabin', cabin);
+  r.apply('cabin', cabinView('beach'));
+  images[0].onload();
+  assert.ok(room());
+  assert.equal(videos()[0].src, 'media/video/beach.mp4');
+  assert.equal(cls.has('scene-fallback'), false);
+});
+
+test('a room-less Live view swaps its clip in place too', () => {
+  const { r, videos } = setup();
+  r.apply('window', full);
+  const v = videos()[0];
+  r.apply('window', { ...full, videos: [{ slot: 'view', clip: 'city-night' }] });
+  assert.deepEqual(videos(), [v]);
+  assert.equal(v.src, 'media/video/city-night.mp4');
+});
+
+test('the room picture starts downloading before the videos', () => {
+  const { r } = setup();
+  r.apply('cabin', cabin);
+  assert.deepEqual(srcLog[0], ['img', cabin.room]);
+});
+
+test('no undimmed copy of the room is kept while it is not dimmed; the first dim reads it back', () => {
+  const { r, room } = setup(true);
+  r.apply('cabin', cabin);
+  images[0].onload();
+  const gets = () => room().ctx.ops.filter((o) => o[0] === 'get').length;
+  assert.equal(gets(), 1); // keying
+  r.setDim(40);
+  assert.equal(gets(), 2);
+  assert.deepEqual(lastDim(room()), ['rgba(0,0,0,0.4)', 'source-atop']);
+  r.setDim(20); // still dimmed: redrawn from the kept copy
+  assert.equal(gets(), 2);
+  assert.deepEqual(lastDim(room()), ['rgba(0,0,0,0.2)', 'source-atop']);
+  r.setDim(0);
+  assert.equal(lastDim(room()), null);
+  r.setDim(10);
+  assert.equal(gets(), 3);
 });

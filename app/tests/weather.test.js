@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { forecastUrl, geocodeUrl, parseForecast, parseGeocode, describeCode, weatherView, IP_LOCATION_URL, parseIpLocation } from '../js/weather.js';
+import { forecastUrl, geocodeUrl, parseForecast, parseGeocode, describeCode, weatherView, liveIcon, IP_LOCATION_URL, parseIpLocation } from '../js/weather.js';
 import { tickerText } from '../js/ticker.js';
 
 const fx = JSON.parse(readFileSync(new URL('./fixtures/open-meteo.json', import.meta.url)));
@@ -91,4 +91,12 @@ test('ticker mentions clear skies after sunset', () => {
 });
 test('ticker is empty with no data', () => {
   assert.equal(tickerText(null, NOW), '');
+});
+
+test('liveIcon ignores a cached icon older than 6 hours (Live view falls back to day/night)', () => {
+  const at = (h) => ({ fetchedAt: NOW.getTime() - h * 3600e3, data: { icon: 'rain' } });
+  assert.equal(liveIcon(at(5.9), NOW), 'rain');
+  assert.equal(liveIcon(at(6.1), NOW), null);
+  assert.equal(liveIcon(null, NOW), null);
+  assert.equal(liveIcon({ fetchedAt: NOW.getTime(), data: {} }, NOW), null);
 });

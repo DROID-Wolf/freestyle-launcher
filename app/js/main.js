@@ -3,7 +3,7 @@ import { formatTime, formatDate, greeting, dayProgress } from './time.js';
 import { themeFor } from './theme.js';
 import { loadDock, saveDock, pruneDock } from './dock.js';
 import { navigate, createCooldown } from './focus.js';
-import { forecastUrl, geocodeUrl, parseForecast, parseGeocode, weatherView, IP_LOCATION_URL, parseIpLocation } from './weather.js';
+import { forecastUrl, geocodeUrl, parseForecast, parseGeocode, weatherView, liveIcon, IP_LOCATION_URL, parseIpLocation } from './weather.js';
 import { tickerText } from './ticker.js';
 import { pickBridge } from './bridge.js';
 import { tileHtml, withPictures, hasVisiblePixels } from './icons.js';
@@ -65,7 +65,8 @@ const renderer = createSceneRenderer(screen, { mediaUrl: (p) => mediaUrl(p, loca
 
 const currentCtx = () => {
   const { rise, set } = sun();
-  return { icon: (cache && cache.data && cache.data.icon) || null, nowMin: nowMin(new Date()), riseMin: rise, setMin: set };
+  const now = new Date();
+  return { icon: liveIcon(cache, now), nowMin: nowMin(now), riseMin: rise, setMin: set };
 };
 
 // Cheap to call often: the renderer skips the work when the scene hasn't changed.
