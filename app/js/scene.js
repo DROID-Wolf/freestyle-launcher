@@ -40,6 +40,7 @@ export function createSceneRenderer(screenEl, { mediaUrl, timeoutMs = 8000 }) {
   let dim = 0; // % the room picture is darkened (the videos never are)
   let roomEl = null; // the room on screen: keyed canvas, or the plain picture if canvas failed
   let roomPixels = null; // the keyed room, undimmed, so the dim can be redrawn
+  let shown = []; // the current scene's <video> elements
 
   // Paint the dim on the room once (not per frame). On the canvas, black goes only over the
   // room's own pixels (source-atop), so the cut-out openings stay clear for the videos.
@@ -78,6 +79,10 @@ export function createSceneRenderer(screenEl, { mediaUrl, timeoutMs = 8000 }) {
     clearTimeout(timer);
     screenEl.classList.remove('scene-fallback');
     setClasses(themeId, spec.layout);
+    // Unload the old videos before dropping them: a detached <video> keeps its decoder until
+    // garbage collection, and the TV has only a few.
+    shown.forEach((v) => { v.pause(); v.removeAttribute('src'); v.load(); });
+    shown = [];
     host.innerHTML = '';
     roomEl = null;
     roomPixels = null;
@@ -86,8 +91,13 @@ export function createSceneRenderer(screenEl, { mediaUrl, timeoutMs = 8000 }) {
     // Ready once the room picture has loaded (a slow video shows its poster until it plays: the
     // forest clip is one 20 MB chunk and can take longer than the timeout on the projector's
     // Wi-Fi), or, with no room, once the first video's first frame has. Events from a scene
-    // that has since been replaced are ignored.
-    const ready = () => { if (gen === generation) clearTimeout(timer); };
+    // that has since been replaced are ignored. Arriving after the timeout still counts: the
+    // fallback is lifted, so a slow start at power-on doesn't leave Aurora up for good.
+    const ready = () => {
+      if (gen !== generation) return;
+      clearTimeout(timer);
+      screenEl.classList.remove('scene-fallback');
+    };
     const fail = () => { if (gen === generation) fallback(); };
     timer = setTimeout(fallback, timeoutMs);
 
@@ -103,11 +113,14 @@ export function createSceneRenderer(screenEl, { mediaUrl, timeoutMs = 8000 }) {
       video.autoplay = !paused;
       video.preload = 'auto';
       video.poster = mediaUrl(clip.poster);
-      if (i === 0) {
-        if (!spec.room) video.addEventListener('loadeddata', ready, { once: true });
+      // With a room, a broken video just leaves its poster in the opening; without one, the
+      // video is the whole scene, so it decides readiness and failure.
+      if (i === 0 && !spec.room) {
+        video.addEventListener('loadeddata', ready, { once: true });
         video.addEventListener('error', fail, { once: true });
       }
       video.src = mediaUrl(clip.video);
+      shown.push(video);
       slot.appendChild(video);
       host.appendChild(slot);
       return slot;

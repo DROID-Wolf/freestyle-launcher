@@ -13,6 +13,7 @@ body { color:#f2f2f4; font-family:Outfit, system-ui, sans-serif; }
 .screen.scene-fallback #scene { display:none; }
 #scene .room, #scene .slot, #scene .slot video { position:absolute; left:0; top:0; width:100%; height:100%; }
 #scene .room, #scene .slot video { object-fit:cover; }
+#scene .slot { border:0; border-radius:0; } /* not the dashed dock-slot frame from .slot below */
 
 /* top bar */
 .top { position:absolute; top:60px; left:120px; right:120px; display:flex; justify-content:space-between; align-items:center; font-size:28px; color:rgba(255,255,255,.7); }

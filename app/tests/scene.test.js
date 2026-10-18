@@ -21,6 +21,9 @@ class El {
   emit(type) { this.listeners[type]?.(); }
   getContext() { if (!canvasOK) throw new Error('no canvas'); return this.ctx || (this.ctx = makeCtx()); }
   querySelectorAll() { return []; }
+  removeAttribute(a) { delete this[a]; }
+  pause() { this.paused = true; }
+  load() { this.reloaded = true; }
 }
 const images = [];
 globalThis.document = { createElement: (t) => new El(t) };
@@ -120,4 +123,52 @@ test('without a canvas the plain room picture is dimmed with a brightness filter
   assert.equal(room().style.filter, 'brightness(0.5)');
   r.setDim(0);
   assert.equal(room().style.filter, '');
+});
+
+test('a room that arrives after the timeout still shows (the fallback is lifted)', () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const { r, cls } = setup();
+    r.apply('cabin', cabin);
+    mock.timers.tick(500);
+    assert.equal(cls.has('scene-fallback'), true);
+    images[0].onload();
+    assert.equal(cls.has('scene-fallback'), false);
+  } finally { mock.timers.reset(); }
+});
+
+test('a room-less video that starts after the timeout still shows', () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const { r, cls, videos } = setup();
+    r.apply('window', full);
+    mock.timers.tick(500);
+    videos()[0].emit('loadeddata');
+    assert.equal(cls.has('scene-fallback'), false);
+  } finally { mock.timers.reset(); }
+});
+
+test('a broken video keeps its room on screen (the poster shows); without a room it falls back', () => {
+  const a = setup();
+  a.r.apply('cabin', cabin);
+  images[0].onload();
+  a.videos()[0].emit('error');
+  assert.equal(a.cls.has('scene-fallback'), false);
+  const b = setup();
+  b.r.apply('window', full);
+  b.videos()[0].emit('error');
+  assert.equal(b.cls.has('scene-fallback'), true);
+});
+
+test('leaving a scene unloads its videos so the TV frees their decoders', () => {
+  const { r, videos } = setup();
+  r.apply('cabin', cabin);
+  const old = videos();
+  r.apply('window', full);
+  assert.equal(old.length, 2);
+  for (const v of old) {
+    assert.equal(v.paused, true);
+    assert.equal('src' in v, false);
+    assert.equal(v.reloaded, true);
+  }
 });
