@@ -35,7 +35,6 @@ export function createBridge({ target, source, timeoutMs = 2000, appsTimeoutMs =
     getApps: () => call('getApps', undefined, appsTimeoutMs),
     launch: (id) => call('launch', { id }).then(() => {}),
     openSettings: () => call('openSettings').then(() => {}),
-    openInputs: () => call('openInputs').then(() => {}),
     openNetwork: () => call('openNetwork').then(() => {}),
   };
 }
@@ -46,7 +45,6 @@ export function mockBridge() {
     getApps: () => Promise.resolve(MOCK_APPS.map((a) => ({ ...a }))),
     launch: (id) => (log('launch', id), Promise.resolve()),
     openSettings: () => (log('openSettings'), Promise.resolve()),
-    openInputs: () => (log('openInputs'), Promise.resolve()),
     openNetwork: () => (log('openNetwork'), Promise.resolve()),
   };
 }

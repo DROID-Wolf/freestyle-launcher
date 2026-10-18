@@ -41,14 +41,15 @@ test('launch sends the app id as params', async () => {
   assert.deepEqual(sent[0].params, { id: 'netflix' });
 });
 
-test('openSettings, openInputs and openNetwork send their methods', async () => {
+test('openSettings and openNetwork send their methods; there is no openInputs', async () => {
   const { target, source, sent } = fakePair((m) => ({ fl: 1, id: m.id, ok: true }));
   const bridge = createBridge({ target, source, timeoutMs: 50 });
   await bridge.openSettings();
-  await bridge.openInputs();
   await bridge.openNetwork();
-  assert.deepEqual(sent.map((m) => m.method), ['openSettings', 'openInputs', 'openNetwork']);
+  assert.deepEqual(sent.map((m) => m.method), ['openSettings', 'openNetwork']);
   assert.notEqual(sent[0].id, sent[1].id);
+  assert.equal(bridge.openInputs, undefined);
+  assert.equal(mockBridge().openInputs, undefined);
 });
 
 test('getApps gets its own, longer timeout (big app lists are slow on the device)', async () => {
@@ -126,7 +127,6 @@ test('mockBridge returns copies of MOCK_APPS and resolves the other calls', asyn
   try {
     await bridge.launch('netflix');
     await bridge.openSettings();
-    await bridge.openInputs();
     await bridge.openNetwork();
   } finally {
     console.log = log;

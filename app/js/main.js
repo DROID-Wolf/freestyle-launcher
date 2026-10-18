@@ -6,7 +6,7 @@ import { navigate } from './focus.js';
 import { forecastUrl, geocodeUrl, parseForecast, parseGeocode, weatherView, IP_LOCATION_URL, parseIpLocation } from './weather.js';
 import { tickerText } from './ticker.js';
 import { pickBridge } from './bridge.js';
-import { tileHtml } from './icons.js';
+import { tileHtml, withPictures, hasVisiblePixels } from './icons.js';
 import { openPicker, openAppGrid } from './picker.js';
 import { loadPrefs, savePrefs, loadWeather, saveWeather } from './store.js';
 
@@ -38,13 +38,14 @@ let dock = savedDock || [];
 let apps = null; // null until the bridge answers; [] if it failed
 let appsError = ''; // why the last getApps failed, shown in the overlays
 let appsLoading = null; // in-flight getApps promise
+let iconNote = ''; // why app pictures are missing, if they all failed
 let cache = loadWeather(storage);
 let focus = { zone: 'dock', index: 0 };
 let overlay = null;
 let toastTimer = 0;
 let lastMinute = -1;
 
-const topButtons = [$('editBtn'), $('inputsBtn'), $('wifiBtn'), $('settingsBtn')];
+const topButtons = [$('editBtn'), $('wifiBtn'), $('settingsBtn')];
 const nowMin = (d) => d.getHours() * 60 + d.getMinutes();
 const fmt = (t) => `${t.h}:${t.m}${t.ampm ? ' ' + t.ampm : ''}`;
 const fmtMin = (min) => fmt(formatTime(new Date(2000, 0, 1, Math.floor(min / 60), min % 60), prefs.hour24));
@@ -153,20 +154,48 @@ const findCity = (q) => fetchJson(geocodeUrl(q)).then(parseGeocode);
 const locateMe = () => fetchJson(IP_LOCATION_URL).then(parseIpLocation);
 
 // ---- installed apps ----
+// Resolves true if the picture decodes and isn't fully transparent.
+function pictureShows(url) {
+  if (!url) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const c = document.createElement('canvas');
+        c.width = c.height = 16;
+        const g = c.getContext('2d');
+        g.drawImage(img, 0, 0, 16, 16);
+        resolve(img.naturalWidth > 0 && hasVisiblePixels(g.getImageData(0, 0, 16, 16).data));
+      } catch (e) {
+        resolve(img.naturalWidth > 0); // can't inspect pixels: trust that it decoded
+      }
+    };
+    img.onerror = () => resolve(false);
+    img.src = url;
+  });
+}
+
 const appsNote = () =>
-  appsLoading ? 'Loading the installed apps…' : appsError ? `Couldn't load the installed apps (${appsError}).` : '';
+  appsLoading ? 'Loading the installed apps…' : appsError ? `Couldn't load the installed apps (${appsError}).` : iconNote;
 
 function loadApps() {
   if (appsLoading) return appsLoading;
   appsLoading = bridge.getApps().then(
     (list) => {
-      apps = (Array.isArray(list) ? list : []).filter((a) => a && typeof a.id === 'string' && typeof a.name === 'string');
-      appsError = '';
-      const ids = apps.map((a) => a.id);
-      if (savedDock) {
-        dock = pruneDock(savedDock, ids); // uninstalled apps drop out silently
-        if (dock.length !== savedDock.length) saveDock(storage, (savedDock = dock));
-      } else dock = ids.slice(0, 5);
+      const all = (Array.isArray(list) ? list : []).filter((a) => a && typeof a.id === 'string' && typeof a.name === 'string');
+      const shown = withPictures(all);
+      const pictured = shown.apps.some((a) => a.icon);
+      return Promise.all(shown.apps.map((a) => (pictured ? pictureShows(a.icon) : true))).then((oks) => {
+        const real = shown.apps.filter((a, i) => oks[i]); // drop broken or blank pictures
+        apps = real.length ? real : shown.apps;
+        iconNote = shown.note;
+        appsError = '';
+        const ids = apps.map((a) => a.id);
+        if (savedDock) {
+          dock = pruneDock(savedDock, ids); // uninstalled apps drop out silently
+          if (dock.length !== savedDock.length) saveDock(storage, (savedDock = dock));
+        } else dock = ids.slice(0, 5);
+      });
     },
     (err) => {
       // bridge failed: keep the saved dock as-is (launches will toast) and say why in the overlays
@@ -217,8 +246,7 @@ function launch(app) {
 function activate() {
   if (focus.zone === 'top') {
     if (focus.index === 0) openCustomize();
-    else if (focus.index === 1) bridge.openInputs().catch(() => toast("Couldn't open Inputs"));
-    else if (focus.index === 2) bridge.openNetwork().catch(() => toast("Couldn't open network settings"));
+    else if (focus.index === 1) bridge.openNetwork().catch(() => toast("Couldn't open network settings"));
     else bridge.openSettings().catch(() => toast("Couldn't open Settings"));
     return;
   }

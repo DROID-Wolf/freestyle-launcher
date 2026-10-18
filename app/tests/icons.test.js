@@ -1,6 +1,28 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { tileHtml, colorClass, escapeHtml } from '../js/icons.js';
+import { tileHtml, colorClass, escapeHtml, withPictures, hasVisiblePixels } from '../js/icons.js';
+
+test('withPictures keeps only apps that have a picture', () => {
+  const list = [
+    { id: 'a', name: 'A', icon: 'data:image/png;base64,xx' },
+    { id: 'b', name: 'B', icon: null, iconError: 'no icon' },
+    { id: 'c', name: 'C', icon: null, iconError: 'image did not load' },
+  ];
+  assert.deepEqual(withPictures(list), { apps: [list[0]], note: '' });
+});
+
+test('withPictures shows everything, with the reason, when no picture loaded at all', () => {
+  const list = [
+    { id: 'b', name: 'B', icon: null, iconError: 'no icon' },
+    { id: 'c', name: 'C', icon: null, iconError: 'SecurityError' },
+  ];
+  assert.deepEqual(withPictures(list), { apps: list, note: "App pictures couldn't be loaded (SecurityError)." });
+});
+
+test('withPictures leaves the desktop mock (no icons, no errors) alone', () => {
+  const list = [{ id: 'netflix', name: 'Netflix', icon: null }];
+  assert.deepEqual(withPictures(list), { apps: list, note: '' });
+});
 
 test('colorClass is stable and within c1..c12', () => {
   for (const id of ['netflix', 'youtube', '11101200001', 'org.tizen.browser', '']) {
@@ -31,10 +53,23 @@ test('extraClass is appended', () => {
   assert.match(tileHtml({ id: 'a', name: 'A', icon: null }, 'focus'), /class="tile c\d+ focus"/);
 });
 
-test('icon renders an img over the letter fallback', () => {
+test('icon tile shows only the picture; the letter is a hidden fallback (icons are often transparent)', () => {
   const html = tileHtml({ id: 'a', name: 'App', icon: '/opt/icons/a.png' });
   assert.match(html, /<img src="\/opt\/icons\/a.png"/);
-  assert.match(html, />A</);
+  assert.match(html, /class="tile c\d+ img"/);
+  assert.match(html, /<span class="ltr">A<\/span>/);
+});
+
+test('letter tile has no img class', () => {
+  assert.ok(!/\bimg\b/.test(tileHtml({ id: 'a', name: 'App', icon: null }).match(/class="[^"]*"/)[0]));
+});
+
+test('hasVisiblePixels rejects fully transparent pictures', () => {
+  const blank = new Uint8ClampedArray(16 * 16 * 4); // all zero alpha
+  assert.equal(hasVisiblePixels(blank), false);
+  const logo = new Uint8ClampedArray(16 * 16 * 4);
+  logo[4 * 37 + 3] = 255; // one opaque pixel
+  assert.equal(hasVisiblePixels(logo), true);
 });
 
 test('names and icon URLs are escaped', () => {

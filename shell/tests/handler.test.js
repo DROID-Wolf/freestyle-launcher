@@ -37,9 +37,9 @@ const fakeTizen = ({ launchError = null, launchThrows = null } = {}) => {
   };
 };
 
-const run = async (data, { origin = ORIGIN, tizen = fakeTizen() } = {}) => {
+const run = async (data, { origin = ORIGIN, tizen = fakeTizen(), loadIcon } = {}) => {
   const replies = [];
-  await handleMessage({ origin, data }, { tizen, allowedOrigins: [ORIGIN, 'file://'], reply: (m) => replies.push(m) });
+  await handleMessage({ origin, data }, { tizen, allowedOrigins: [ORIGIN, 'file://'], reply: (m) => replies.push(m), loadIcon });
   return { replies, tizen };
 };
 
@@ -66,6 +66,41 @@ test('getApps replies with visible apps as {id, name, icon}, excluding the shell
   }]);
 });
 
+test('with loadIcon, getApps returns the picture as a data URL (the https UI cannot read file:// icons)', async () => {
+  const asked = [];
+  const loadIcon = (p) => (asked.push(p), Promise.resolve(`data:image/png;base64,${p.length}`));
+  const { replies } = await run({ fl: 1, id: 11, method: 'getApps' }, { loadIcon });
+  assert.deepEqual(asked, ['/opt/usr/apps/netflix/icon.png']); // apps without an iconPath aren't asked for
+  assert.deepEqual(replies[0].result, [
+    { id: 'netflix.app', name: 'Netflix', icon: 'data:image/png;base64,30' },
+    { id: 'yt.app', name: 'YouTube', icon: null, iconError: 'no icon' },
+  ]);
+});
+
+test('an icon that fails to load gives icon null and the reason', async () => {
+  const loadIcon = () => Promise.reject(new Error('SecurityError: tainted canvas'));
+  const { replies } = await run({ fl: 1, id: 12, method: 'getApps' }, { loadIcon });
+  assert.equal(replies[0].ok, true);
+  assert.deepEqual(replies[0].result[0], { id: 'netflix.app', name: 'Netflix', icon: null, iconError: 'SecurityError: tainted canvas' });
+});
+
+test('icons load at most 6 at a time', async () => {
+  const many = Array.from({ length: 20 }, (_, i) => ({ id: `app${i}`, name: `App ${i}`, iconPath: `/i/${i}.png`, show: true }));
+  const tizen = fakeTizen();
+  tizen.application.getAppsInfo = (ok) => setTimeout(() => ok(many), 0);
+  let inFlight = 0;
+  let peak = 0;
+  const loadIcon = () => {
+    inFlight++;
+    peak = Math.max(peak, inFlight);
+    return new Promise((r) => setTimeout(() => { inFlight--; r('data:x'); }, 5));
+  };
+  const { replies } = await run({ fl: 1, id: 13, method: 'getApps' }, { tizen, loadIcon });
+  assert.equal(replies[0].result.length, 20);
+  assert.ok(replies[0].result.every((a) => a.icon === 'data:x'));
+  assert.ok(peak <= 6, `peak ${peak}`);
+});
+
 test('launch calls tizen.application.launch and replies ok', async () => {
   const { replies, tizen } = await run({ fl: 1, id: 3, method: 'launch', params: { id: 'yt.app' } });
   assert.deepEqual(tizen.launched, ['yt.app']);
@@ -84,13 +119,17 @@ test('a synchronous tizen exception replies ok:false', async () => {
   assert.deepEqual(replies, [{ fl: 1, id: 5, ok: false, error: 'bad id' }]);
 });
 
-// App IDs read from the Freestyle 2nd Gen's own app list (sdb shell 0 applist).
-test('openSettings, openInputs and openNetwork launch the system apps', async () => {
+// App IDs confirmed on the Freestyle 2nd Gen by launching them and watching the screen.
+test('openSettings and openNetwork launch the system apps', async () => {
   const tizen = fakeTizen();
   await run({ fl: 1, id: 8, method: 'openSettings' }, { tizen });
-  await run({ fl: 1, id: 9, method: 'openInputs' }, { tizen });
   await run({ fl: 1, id: 10, method: 'openNetwork' }, { tizen });
-  assert.deepEqual(tizen.launched, ['com.samsung.tv.coba.setting', 'org.tizen.SMSourceAPP', 'com.samsung.tv.coba.setting.networksettings']);
+  assert.deepEqual(tizen.launched, ['org.tizen.menu', 'org.tizen.NetworkSetting-Tizen']);
+});
+
+test('openInputs is gone (no input app can be opened on this model)', async () => {
+  const { replies } = await run({ fl: 1, id: 9, method: 'openInputs' });
+  assert.deepEqual(replies, [{ fl: 1, id: 9, ok: false, error: 'unknown method' }]);
 });
 
 test('unknown method replies ok:false "unknown method"', async () => {

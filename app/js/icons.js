@@ -14,11 +14,30 @@ const letterOf = (name) => {
   return m ? m[0].toUpperCase() : '?';
 };
 
-// The img sits over the letter; if it fails to load (e.g. a device-local path) it removes
-// itself and the letter tile shows through.
+// The device lists ~1,000 entries, mostly system services without artwork: keep only apps with
+// a real picture. If no picture loaded at all (and the shell said why), show everything + reason.
+export function withPictures(list) {
+  const pictured = list.filter((a) => typeof a.icon === 'string' && a.icon);
+  if (pictured.length) return { apps: pictured, note: '' };
+  const failed = list.find((a) => a.iconError && a.iconError !== 'no icon');
+  return { apps: list, note: failed ? `App pictures couldn't be loaded (${failed.iconError}).` : '' };
+}
+
+// True if a small RGBA sample of a picture has any visible pixel (some app icons are blank).
+export function hasVisiblePixels(rgba) {
+  for (let i = 3; i < rgba.length; i += 4) if (rgba[i] > 16) return true;
+  return false;
+}
+
+// With a picture, the tile shows only the picture (icons are often transparent logos, so a
+// letter underneath would show through). If the picture fails to load, it removes itself and
+// the hidden letter tile comes back.
 export function tileHtml(app, extraClass = '') {
-  const cls = `tile ${colorClass(app.id)}${extraClass ? ' ' + extraClass : ''}`;
-  const img = app.icon ? `<img src="${escapeHtml(app.icon)}" alt="" onerror="this.remove()">` : '';
-  return `<div class="${cls}" data-id="${escapeHtml(app.id)}">${letterOf(app.name)}${img}` +
+  const cls = `tile ${colorClass(app.id)}${app.icon ? ' img' : ''}${extraClass ? ' ' + extraClass : ''}`;
+  const face = app.icon
+    ? `<span class="ltr">${letterOf(app.name)}</span><img src="${escapeHtml(app.icon)}" alt="" ` +
+      `onerror="this.parentNode.classList.remove('img');this.remove()">`
+    : letterOf(app.name);
+  return `<div class="${cls}" data-id="${escapeHtml(app.id)}">${face}` +
     `<span class="tip">${escapeHtml(app.name)}</span></div>`;
 }

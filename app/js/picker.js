@@ -17,9 +17,24 @@ const mount = (root, cls) => {
   return el;
 };
 
-const scrollToFocus = (el) => {
-  const f = el.querySelector('.focus');
-  if (f && f.scrollIntoView) f.scrollIntoView({ block: 'nearest' });
+// Re-rendering replaces the grid, so carry its scroll position over, then scroll vertically
+// (never sideways) just enough to keep the focused app in view.
+const gridScroll = (el) => {
+  const wrap = el.querySelector('.gridwrap');
+  return wrap ? wrap.scrollTop : 0;
+};
+const scrollToFocus = (el, prevTop = 0) => {
+  const wrap = el.querySelector('.gridwrap');
+  if (!wrap) return;
+  wrap.scrollLeft = 0;
+  wrap.scrollTop = prevTop;
+  const f = wrap.querySelector('.focus');
+  const item = f && (f.closest('.gapp') || f);
+  if (!item) return;
+  const pad = 16;
+  if (item.offsetTop - pad < wrap.scrollTop) wrap.scrollTop = item.offsetTop - pad;
+  else if (item.offsetTop + item.offsetHeight + pad > wrap.scrollTop + wrap.clientHeight)
+    wrap.scrollTop = item.offsetTop + item.offsetHeight + pad - wrap.clientHeight;
 };
 
 export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose, findCity, locateMe, root = document.getElementById('screen') }) {
@@ -50,11 +65,11 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
       const n = dock.indexOf(a.id);
       const badge = n >= 0 ? `<span class="badge">${n + 1}</span>` : '';
       const tile = tileHtml(a, isFocus('body', i).trim()).replace(/<\/div>$/, `${badge}</div>`);
-      return `<div class="gapp${n >= 0 ? ' sel' : ''}" data-i="${i}">${tile}${escapeHtml(a.name)}</div>`;
+      return `<div class="gapp${n >= 0 ? ' sel' : ''}" data-i="${i}">${tile}<span class="nm">${escapeHtml(a.name)}</span></div>`;
     }).join('');
     return `<p>Select up to ${MAX_DOCK} apps. They appear in the dock in the order you pick them. Select one again to remove it.</p>
       <div class="slots"><span class="lbl">Your dock</span>${slots.join('')}</div>
-      ${apps.length ? `<div class="gridwrap"><div class="grid">${grid}</div></div>` : appsMsg(appsNote)}
+      ${apps.length ? `${appsNote ? appsMsg(appsNote) : ''}<div class="gridwrap"><div class="grid">${grid}</div></div>` : appsMsg(appsNote)}
       <div class="full">Dock is full. Remove an app first.</div>`;
   }
 
@@ -75,11 +90,12 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
 
   function render() {
     const tabBtn = (name, i, label) => `<div class="tab${tab === name ? ' on' : ''}${isFocus('tabs', i)}" data-tab="${name}">${label}</div>`;
+    const prevTop = gridScroll(el);
     el.innerHTML = `<h2>Customize</h2>
       <div class="tabs">${tabBtn('apps', 0, 'Apps')}${tabBtn('prefs', 1, 'Preferences')}</div>
       ${tab === 'apps' ? appsHtml() : prefsHtml()}
       <div class="done${isFocus('body', doneIndex())}" data-i="${doneIndex()}">Done</div>`;
-    scrollToFocus(el);
+    scrollToFocus(el, prevTop);
   }
 
   function showFull() {
@@ -245,11 +261,12 @@ export function openAppGrid({ apps, appsNote = '', onLaunch, onClose, root = doc
 
   function render() {
     const grid = apps.map((a, i) =>
-      `<div class="gapp" data-i="${i}">${tileHtml(a, idx === i ? 'focus' : '')}${escapeHtml(a.name)}</div>`).join('');
+      `<div class="gapp" data-i="${i}">${tileHtml(a, idx === i ? 'focus' : '')}<span class="nm">${escapeHtml(a.name)}</span></div>`).join('');
+    const prevTop = gridScroll(el);
     el.innerHTML = `<h2>All apps</h2>
       ${apps.length ? `<div class="gridwrap"><div class="grid">${grid}</div></div>` : appsMsg(appsNote)}
       <div class="done${idx === apps.length ? ' focus' : ''}" data-i="${apps.length}">Close</div>`;
-    scrollToFocus(el);
+    scrollToFocus(el, prevTop);
   }
 
   function activate() {
