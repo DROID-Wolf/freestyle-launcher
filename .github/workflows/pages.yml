@@ -29,12 +29,13 @@ jobs:
       - name: Stage site (app/ without unit tests)
         run: rsync -a --exclude tests app/ _site/
       # The shell reads version.json (uncached) and loads v/<build>/, so a cached copy of an
-      # older deploy can never be shown on the projector.
+      # older deploy can never be shown on the projector. media/ (videos, room pictures) is
+      # published once at the root only; the UI reaches it via mediaUrl() in app/js/media.js.
       - name: Add versioned copy and build id
         run: |
           BUILD=$(git rev-parse --short=12 HEAD)
           mkdir -p "_site/v/$BUILD"
-          rsync -a --exclude tests app/ "_site/v/$BUILD/"
+          rsync -a --exclude tests --exclude media app/ "_site/v/$BUILD/"
           node -e "const fs=require('fs');const p='_site/version.json';const v=JSON.parse(fs.readFileSync(p,'utf8'));v.build=process.argv[1];const s=JSON.stringify(v);fs.writeFileSync(p,s);fs.writeFileSync('_site/v/'+process.argv[1]+'/version.json',s);" "$BUILD"
           cat _site/version.json
       - uses: actions/upload-pages-artifact@v3

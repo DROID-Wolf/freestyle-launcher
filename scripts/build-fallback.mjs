@@ -11,6 +11,7 @@ const dest = join(root, 'shell', 'fallback');
 rmSync(dest, { recursive: true, force: true });
 cpSync(src, dest, {
   recursive: true,
-  filter: (p) => !relative(src, p).split(sep).includes('tests'), // unit tests aren't shipped
+  // unit tests aren't shipped; media (videos) is too big for the widget — offline shows Aurora
+  filter: (p) => { const parts = relative(src, p).split(sep); return !parts.includes('tests') && !parts.includes('media'); },
 });
 console.log(`Copied ${relative(root, src)} -> ${relative(root, dest)}`);

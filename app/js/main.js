@@ -9,6 +9,9 @@ import { pickBridge } from './bridge.js';
 import { tileHtml, withPictures, hasVisiblePixels } from './icons.js';
 import { openPicker, openAppGrid } from './picker.js';
 import { loadPrefs, savePrefs, loadWeather, saveWeather } from './store.js';
+// TEMPORARY (themes plan, Task 1): on the projector, open the video playback test first.
+if (window.parent !== window && !/nospike/.test(location.search)) location.replace('spike.html');
+
 const WEATHER_EVERY = 15 * 60 * 1000;
 const FETCH_TIMEOUT = 10000;
 const DEFAULT_SUN = { rise: 7 * 60, set: 19 * 60 }; // until we have a forecast
