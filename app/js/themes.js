@@ -4,7 +4,9 @@
 
 const clip = (id) => ({ video: `media/video/${id}.mp4`, poster: `media/posters/${id}.jpg` });
 export const CLIPS = {
-  'city-rain': clip('city-rain'),
+  'city-rain': clip('city-rain'), // "Rainy night"
+  'rain-heavy': clip('rain-heavy'),
+  'rain-storm': clip('rain-storm'),
   'city-night': clip('city-night'),
   'snowy-forest': clip('snowy-forest'),
   beach: clip('beach'),
@@ -37,10 +39,12 @@ const THUMBS = {
 };
 
 // Live window view: weather first, then day/night (sunrise minute is day, sunset minute is night).
+// Storms get Storm; rain is Heavy rain by day and Rainy night after dark.
 export function liveView(icon, nowMin, riseMin, setMin) {
-  if (icon === 'rain' || icon === 'storm') return 'city-rain';
-  if (icon === 'snow') return 'snowy-forest';
   const day = nowMin >= riseMin && nowMin < setMin;
+  if (icon === 'storm') return 'rain-storm';
+  if (icon === 'rain') return day ? 'rain-heavy' : 'city-rain';
+  if (icon === 'snow') return 'snowy-forest';
   return day ? 'beach' : 'city-night';
 }
 
@@ -52,7 +56,7 @@ export const THEMES = [
     options: [
       opt('style', 'Style', 'desk', [['desk', 'Desk'], ['loft', 'Loft'], ['train', 'Train'], ['attic', 'Attic'],
         ['highrise', 'High-rise'], ['sunroom', 'Sunroom'], ['porch', 'Porch']], true),
-      opt('view', 'View', 'live', [['live', 'Live'], ['city-rain', 'Rainy city'], ['snowy-forest', 'Snowy forest'], ['beach', 'Beach']]),
+      opt('view', 'View', 'live', [['live', 'Live'], ['city-rain', 'Rainy night'], ['rain-heavy', 'Heavy rain'], ['rain-storm', 'Storm'],['snowy-forest', 'Snowy forest'], ['beach', 'Beach']]),
     ],
     scene: (o, c) => {
       const view = o.view === 'live' ? liveView(c.icon, c.nowMin, c.riseMin, c.setMin) : o.view;

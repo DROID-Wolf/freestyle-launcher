@@ -15,14 +15,17 @@ test('every option default is one of its values', () => {
   for (const t of THEMES) for (const o of t.options) assert.ok(o.values.some((v) => v.id === o.default), `${t.id}.${o.key}`);
 });
 
-test('window offers 7 clearable styles and 4 views; fireplace stone/brick', () => {
+test('window offers 7 clearable styles and 6 views (3 rain styles); fireplace stone/brick', () => {
   const w = themeById('window');
   const style = w.options.find((o) => o.key === 'style');
   const view = w.options.find((o) => o.key === 'view');
   assert.deepEqual(style.values.map((v) => v.id), ['desk', 'loft', 'train', 'attic', 'highrise', 'sunroom', 'porch']);
   assert.equal(style.allowNone, true);
   assert.equal(style.default, 'desk');
-  assert.deepEqual(view.values.map((v) => v.id), ['live', 'city-rain', 'snowy-forest', 'beach']);
+  assert.deepEqual(view.values.map((v) => [v.id, v.label]), [
+    ['live', 'Live'], ['city-rain', 'Rainy night'], ['rain-heavy', 'Heavy rain'], ['rain-storm', 'Storm'],
+    ['snowy-forest', 'Snowy forest'], ['beach', 'Beach'],
+  ]);
   assert.equal(view.allowNone, false);
   assert.equal(view.default, 'live');
   assert.deepEqual(themeById('fireplace').options.map((o) => [o.key, o.default, o.values.map((v) => v.id)]), [['hearth', 'stone', ['stone', 'brick']]]);
@@ -31,13 +34,18 @@ test('window offers 7 clearable styles and 4 views; fireplace stone/brick', () =
 });
 
 test('clips have a video and a poster under media/', () => {
-  assert.deepEqual(Object.keys(CLIPS).sort(), ['aquarium', 'beach', 'city-night', 'city-rain', 'fire', 'snowy-forest']);
+  assert.deepEqual(Object.keys(CLIPS).sort(), ['aquarium', 'beach', 'city-night', 'city-rain', 'fire', 'rain-heavy', 'rain-storm', 'snowy-forest']);
   assert.deepEqual(CLIPS['city-rain'], { video: 'media/video/city-rain.mp4', poster: 'media/posters/city-rain.jpg' });
 });
 
+test('liveView: storms get Storm; rain is Heavy rain by day and Rainy night after dark', () => {
+  assert.equal(liveView('storm', 600, RISE, SET), 'rain-storm');
+  assert.equal(liveView('storm', 1300, RISE, SET), 'rain-storm');
+  assert.equal(liveView('rain', 600, RISE, SET), 'rain-heavy');
+  assert.equal(liveView('rain', 1300, RISE, SET), 'city-rain');
+});
+
 test('liveView: weather first, then day or night', () => {
-  assert.equal(liveView('rain', 600, RISE, SET), 'city-rain');
-  assert.equal(liveView('storm', 600, RISE, SET), 'city-rain');
   assert.equal(liveView('snow', 1300, RISE, SET), 'snowy-forest');
   assert.equal(liveView('clear', 1300, RISE, SET), 'city-night');
   assert.equal(liveView('cloudy', 600, RISE, SET), 'beach');
@@ -56,8 +64,10 @@ test('liveView without weather uses only day or night', () => {
 
 test('resolveScene: window with a style frames the view in that room', () => {
   assert.deepEqual(resolveScene('window', { window: { style: 'desk', view: 'live' } }, ctx('rain', 720)), {
-    room: 'media/rooms/desk.jpg', videos: [{ slot: 'view', clip: 'city-rain' }], layout: 'window-desk',
+    room: 'media/rooms/desk.jpg', videos: [{ slot: 'view', clip: 'rain-heavy' }], layout: 'window-desk',
   });
+  assert.deepEqual(resolveScene('window', { window: { style: 'desk', view: 'rain-storm' } }, ctx('clear', 720)).videos,
+    [{ slot: 'view', clip: 'rain-storm' }]);
 });
 
 test('room files: the Canva rooms are .jpg, the user-made ones are .webp', () => {
@@ -159,8 +169,10 @@ test('cleanThemePrefs: non-object options become {}', () => {
 
 test('sceneKey: equal for equal scenes, different when the clip changes', () => {
   const a = resolveScene('window', {}, ctx('rain', 720));
-  const b = resolveScene('window', {}, ctx('storm', 720));
+  const b = resolveScene('window', {}, ctx('rain', 730));
   const c = resolveScene('window', {}, ctx('snow', 720));
+  const d = resolveScene('window', {}, ctx('storm', 720));
   assert.equal(sceneKey(a), sceneKey(b));
   assert.notEqual(sceneKey(a), sceneKey(c));
+  assert.notEqual(sceneKey(a), sceneKey(d));
 });

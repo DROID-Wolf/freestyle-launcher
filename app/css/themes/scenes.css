@@ -36,6 +36,5 @@
   font-family:'Chalkboard SE', 'Comic Sans MS', 'Segoe Print', cursive; color:#f1efe6; text-shadow:0 0 6px rgba(255,255,255,.25); }
 .screen.layout-cafe .clock .t { font-size:72px; letter-spacing:0; justify-content:center; font-weight:400; }
 .screen.layout-cafe .clock .t .ampm { font-size:26px; margin-left:6px; color:#e6e3d8; }
-.screen.layout-cafe .clock .t .colon { animation:none; }
 .screen.layout-cafe .clock .d { font-size:20px; margin-top:6px; color:#d8d4c6; }
 .screen.layout-cafe .wx { right:auto; left:520px; }

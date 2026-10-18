@@ -31,8 +31,7 @@ body { color:#f2f2f4; font-family:Outfit, system-ui, sans-serif; }
 /* clock */
 .clock { position:absolute; left:120px; top:250px; }
 .clock .t { font-size:300px; font-weight:200; letter-spacing:-8px; line-height:.9; display:flex; align-items:baseline; }
-.clock .t .colon { animation:blink 2s steps(1) infinite; margin:0 4px; }
-@keyframes blink { 50% { opacity:.25; } }
+.clock .t .colon { margin:0 4px; } /* steady colon (no blink), by request */
 .clock .t .ampm { font-size:60px; letter-spacing:0; margin-left:24px; color:rgba(255,255,255,.6); font-weight:300; }
 .clock .d { font-size:46px; font-weight:300; color:rgba(255,255,255,.85); margin-top:26px; }
 .dayline { margin-top:34px; width:620px; }
@@ -176,4 +175,4 @@ body { color:#f2f2f4; font-family:Outfit, system-ui, sans-serif; }
 .toast.show { opacity:1; transform:translate(-50%,0); }
 
 /* reduce motion: stop the ambient animations */
-body.reduce-motion .blob, body.reduce-motion .sun .rays, body.reduce-motion .sun .cloud, body.reduce-motion .clock .colon { animation:none; }
+body.reduce-motion .blob, body.reduce-motion .sun .rays, body.reduce-motion .sun .cloud { animation:none; }
