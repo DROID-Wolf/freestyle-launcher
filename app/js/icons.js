@@ -16,9 +16,17 @@ const letterOf = (name) => {
 
 // The device lists ~1,000 entries, mostly system services without artwork: keep only apps with
 // a real picture. If no picture loaded at all (and the shell said why), show everything + reason.
+// Apps without their own artwork get Tizen's default icon (blue "TIZEN"): any picture shared by
+// PLACEHOLDER_MIN or more apps is treated as that placeholder and hidden too.
+const PLACEHOLDER_MIN = 3;
+
 export function withPictures(list) {
   const pictured = list.filter((a) => typeof a.icon === 'string' && a.icon);
-  if (pictured.length) return { apps: pictured, note: '' };
+  if (pictured.length) {
+    const uses = new Map();
+    for (const a of pictured) uses.set(a.icon, (uses.get(a.icon) || 0) + 1);
+    return { apps: pictured.filter((a) => uses.get(a.icon) < PLACEHOLDER_MIN), note: '' };
+  }
   const failed = list.find((a) => a.iconError && a.iconError !== 'no icon');
   return { apps: list, note: failed ? `App pictures couldn't be loaded (${failed.iconError}).` : '' };
 }

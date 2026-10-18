@@ -19,6 +19,24 @@ test('withPictures shows everything, with the reason, when no picture loaded at 
   assert.deepEqual(withPictures(list), { apps: list, note: "App pictures couldn't be loaded (SecurityError)." });
 });
 
+test('withPictures hides apps sharing a placeholder picture (3+ apps with the identical image)', () => {
+  const tizen = 'data:image/png;base64,TIZEN';
+  const list = [
+    { id: 'netflix', name: 'Netflix', icon: 'data:image/png;base64,N' },
+    { id: 's1', name: 'Service 1', icon: tizen },
+    { id: 'yt', name: 'YouTube', icon: 'data:image/png;base64,Y' },
+    { id: 's2', name: 'Service 2', icon: tizen },
+    { id: 's3', name: 'Service 3', icon: tizen },
+  ];
+  assert.deepEqual(withPictures(list).apps.map((a) => a.id), ['netflix', 'yt']);
+});
+
+test('two apps sharing a picture (e.g. a TV and a Kids variant) are kept', () => {
+  const same = 'data:image/png;base64,SAME';
+  const list = [{ id: 'a', name: 'A', icon: same }, { id: 'b', name: 'B', icon: same }];
+  assert.equal(withPictures(list).apps.length, 2);
+});
+
 test('withPictures leaves the desktop mock (no icons, no errors) alone', () => {
   const list = [{ id: 'netflix', name: 'Netflix', icon: null }];
   assert.deepEqual(withPictures(list), { apps: list, note: '' });
