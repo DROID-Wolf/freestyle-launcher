@@ -1,0 +1,8 @@
+{
+  "name": "freestyle-launcher",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"app/tests/**/*.test.js\" \"shell/tests/**/*.test.js\""
+  }
+}

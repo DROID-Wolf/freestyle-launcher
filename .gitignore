@@ -3,3 +3,5 @@ Claude outputs/
 Thumbs.db
 *.wgt
 .buildResult/
+.superpowers/
+shell/fallback/
