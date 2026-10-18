@@ -118,6 +118,13 @@ body { color:#f2f2f4; font-family:Outfit, system-ui, sans-serif; }
 .pill2 { padding:12px 28px; border-radius:999px; background:rgba(255,255,255,.12); cursor:pointer; transition:transform .2s; }
 .pill2.on { background:rgba(255,255,255,.32); }
 .pill2.focus { background:#fff; color:#111; transform:scale(1.08); }
+.dimbar { display:flex; align-items:center; gap:16px; padding:10px 22px; border-radius:999px; background:rgba(255,255,255,.12); transition:transform .2s; }
+.dimbar .step { cursor:pointer; opacity:.7; padding:0 4px; }
+.dimbar .track { width:320px; height:10px; border-radius:5px; background:rgba(255,255,255,.2); overflow:hidden; }
+.dimbar .fill { display:block; height:100%; background:currentColor; }
+.dimbar .val { width:60px; text-align:right; }
+.dimbar.focus { background:#fff; color:#111; transform:scale(1.04); }
+.dimbar.focus .track { background:rgba(0,0,0,.15); }
 .slots { display:flex; gap:24px; margin-top:36px; align-items:center; }
 .slots .lbl { font-size:22px; color:rgba(255,255,255,.5); letter-spacing:2px; text-transform:uppercase; width:150px; }
 .slot { width:96px; height:96px; border-radius:26px; border:2px dashed rgba(255,255,255,.2); }

@@ -21,7 +21,7 @@ function cutOutRoom(img, slotCount, spill) {
   const pixels = g.getImageData(0, 0, W, H);
   const { regions } = keyGreen(pixels.data, W, H, 8, { spill });
   g.putImageData(pixels, 0, 0);
-  return { canvas: c, boxes: assignSlots(regions, slotCount) };
+  return { canvas: c, pixels, boxes: assignSlots(regions, slotCount) };
 }
 
 const place = (el, box) => {
@@ -37,6 +37,26 @@ export function createSceneRenderer(screenEl, { mediaUrl, timeoutMs = 8000 }) {
   let timer = 0;
   let paused = false;
   let generation = 0; // bumps on every new scene so a late-loading room can't land in a newer one
+  let dim = 0; // % the room picture is darkened (the videos never are)
+  let roomEl = null; // the room on screen: keyed canvas, or the plain picture if canvas failed
+  let roomPixels = null; // the keyed room, undimmed, so the dim can be redrawn
+
+  // Paint the dim on the room once (not per frame). On the canvas, black goes only over the
+  // room's own pixels (source-atop), so the cut-out openings stay clear for the videos.
+  function paintDim() {
+    if (!roomEl) return;
+    if (!roomPixels) {
+      roomEl.style.filter = dim ? `brightness(${1 - dim / 100})` : '';
+      return;
+    }
+    const g = roomEl.getContext('2d');
+    g.putImageData(roomPixels, 0, 0);
+    if (!dim) return;
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = `rgba(0,0,0,${dim / 100})`;
+    g.fillRect(0, 0, W, H);
+    g.globalCompositeOperation = 'source-over';
+  }
 
   const setClasses = (themeId, layout) => {
     [...screenEl.classList].filter((c) => /^(theme|layout)-/.test(c)).forEach((c) => screenEl.classList.remove(c));
@@ -59,12 +79,15 @@ export function createSceneRenderer(screenEl, { mediaUrl, timeoutMs = 8000 }) {
     screenEl.classList.remove('scene-fallback');
     setClasses(themeId, spec.layout);
     host.innerHTML = '';
+    roomEl = null;
+    roomPixels = null;
     if (!spec.room && !spec.videos.length) return;
 
-    // Ready once the room picture and the first video's first frame have loaded. Events from a
-    // scene that has since been replaced are ignored.
-    let pending = (spec.room ? 1 : 0) + (spec.videos.length ? 1 : 0);
-    const ready = () => { if (gen === generation && --pending === 0) clearTimeout(timer); };
+    // Ready once the room picture has loaded (a slow video shows its poster until it plays: the
+    // forest clip is one 20 MB chunk and can take longer than the timeout on the projector's
+    // Wi-Fi), or, with no room, once the first video's first frame has. Events from a scene
+    // that has since been replaced are ignored.
+    const ready = () => { if (gen === generation) clearTimeout(timer); };
     const fail = () => { if (gen === generation) fallback(); };
     timer = setTimeout(fallback, timeoutMs);
 
@@ -81,7 +104,7 @@ export function createSceneRenderer(screenEl, { mediaUrl, timeoutMs = 8000 }) {
       video.preload = 'auto';
       video.poster = mediaUrl(clip.poster);
       if (i === 0) {
-        video.addEventListener('loadeddata', ready, { once: true });
+        if (!spec.room) video.addEventListener('loadeddata', ready, { once: true });
         video.addEventListener('error', fail, { once: true });
       }
       video.src = mediaUrl(clip.video);
@@ -99,10 +122,13 @@ export function createSceneRenderer(screenEl, { mediaUrl, timeoutMs = 8000 }) {
         try {
           const cut = cutOutRoom(img, slots.length, ROOM_SPILL[spec.room]);
           room = cut.canvas;
+          roomPixels = cut.pixels;
           if (cut.boxes) slots.forEach((s, i) => place(s, cut.boxes[i]));
         } catch (e) {
           img.className = 'room'; // canvas unavailable: show the plain picture
         }
+        roomEl = room;
+        paintDim();
         host.appendChild(room);
         slots.forEach((s) => { s.style.visibility = ''; });
         ready();
@@ -121,5 +147,11 @@ export function createSceneRenderer(screenEl, { mediaUrl, timeoutMs = 8000 }) {
     });
   }
 
-  return { apply, setPaused };
+  function setDim(pct) {
+    if (pct === dim) return;
+    dim = pct;
+    paintDim();
+  }
+
+  return { apply, setPaused, setDim };
 }

@@ -72,6 +72,7 @@ const currentCtx = () => {
 function applyTheme() {
   renderer.apply(prefs.theme, resolveScene(prefs.theme, prefs.themeOptions, currentCtx()));
   renderer.setPaused(prefs.reduceMotion);
+  renderer.setDim(prefs.roomDim);
 }
 
 // ---- layout ----

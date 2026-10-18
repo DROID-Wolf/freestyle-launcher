@@ -4,9 +4,16 @@ const PREFS = 'fl.prefs';
 const WEATHER = 'fl.weather';
 
 export const DEFAULT_PREFS = {
-  name: '', city: '', lat: null, lon: null, hour24: false, reduceMotion: false, theme: 'aurora', themeOptions: {},
+  name: '', city: '', lat: null, lon: null, hour24: false, reduceMotion: false, theme: 'aurora', themeOptions: {}, roomDim: 0,
 };
 const TYPES = { name: 'string', city: 'string', lat: 'number', lon: 'number', hour24: 'boolean', reduceMotion: 'boolean' };
+
+// How much the scene themes darken their room picture (the videos stay as they are), in %.
+const DIM_STEP = 10;
+const DIM_MAX = 70;
+const cleanDim = (v) => (typeof v === 'number' && Number.isFinite(v)
+  ? Math.min(DIM_MAX, Math.max(0, Math.round(v / DIM_STEP) * DIM_STEP)) : 0);
+export const stepDim = (v, dir) => cleanDim(v + dir * DIM_STEP);
 
 const read = (storage, key) => {
   try {
@@ -30,7 +37,7 @@ export function loadPrefs(storage) {
   for (const k of Object.keys(TYPES)) {
     if (typeof raw[k] === TYPES[k] && (TYPES[k] !== 'number' || Number.isFinite(raw[k]))) prefs[k] = raw[k];
   }
-  return { ...prefs, ...cleanThemePrefs(raw.theme, raw.themeOptions) };
+  return { ...prefs, ...cleanThemePrefs(raw.theme, raw.themeOptions), roomDim: cleanDim(raw.roomDim) };
 }
 
 export const savePrefs = (storage, prefs) => write(storage, PREFS, prefs);

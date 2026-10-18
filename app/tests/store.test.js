@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_PREFS, loadPrefs, savePrefs, loadWeather, saveWeather } from '../js/store.js';
+import { DEFAULT_PREFS, loadPrefs, savePrefs, loadWeather, saveWeather, stepDim } from '../js/store.js';
 
 const memStorage = (init = {}) => {
   const s = { ...init };
@@ -31,7 +31,26 @@ test('savePrefs round-trips and survives a throwing storage', () => {
 test('prefs saved before themes existed load as Aurora, everything else unchanged', () => {
   const today = { name: 'Nick', city: 'State College', lat: 40.79, lon: -77.86, hour24: false, reduceMotion: false };
   const s = memStorage({ 'fl.prefs': JSON.stringify(today) });
-  assert.deepEqual(loadPrefs(s), { ...today, theme: 'aurora', themeOptions: {} });
+  assert.deepEqual(loadPrefs(s), { ...today, theme: 'aurora', themeOptions: {}, roomDim: 0 });
+});
+
+test('room dimming: 0–70 % in steps of 10; anything else is cleaned up', () => {
+  assert.equal(DEFAULT_PREFS.roomDim, 0);
+  const dim = (v) => loadPrefs(memStorage({ 'fl.prefs': JSON.stringify({ roomDim: v }) })).roomDim;
+  assert.equal(dim(40), 40);
+  assert.equal(dim(70), 70);
+  assert.equal(dim(90), 70);
+  assert.equal(dim(-10), 0);
+  assert.equal(dim(33), 30);
+  assert.equal(dim('50'), 0);
+  assert.equal(dim(null), 0);
+});
+
+test('stepDim moves one step and stops at the ends', () => {
+  assert.equal(stepDim(0, 1), 10);
+  assert.equal(stepDim(30, -1), 20);
+  assert.equal(stepDim(0, -1), 0);
+  assert.equal(stepDim(70, 1), 70);
 });
 
 test('a saved theme with a cleared window style round-trips', () => {

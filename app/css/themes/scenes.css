@@ -37,4 +37,15 @@
 .screen.layout-cafe .clock .t { font-size:72px; letter-spacing:0; justify-content:center; font-weight:400; }
 .screen.layout-cafe .clock .t .ampm { font-size:26px; margin-left:6px; color:#e6e3d8; }
 .screen.layout-cafe .clock .d { font-size:20px; margin-top:6px; color:#d8d4c6; }
-.screen.layout-cafe .wx { right:auto; left:520px; }
+/* …and the weather is one low strip (today, then the 7-day forecast) on the counter front,
+   right of the dock, so it covers neither the window nor the counter edge */
+.screen.layout-cafe .wx { right:auto; left:520px; bottom:36px; width:auto; display:flex; align-items:center; gap:30px; padding:14px 28px; }
+.screen.layout-cafe .wx .deg { font-size:68px; }
+.screen.layout-cafe .wx .cond { font-size:22px; margin-top:2px; }
+.screen.layout-cafe .wx .hl { font-size:17px; margin-top:2px; }
+.screen.layout-cafe .wx .sun { transform:scale(.6); margin:-20px; }
+.screen.layout-cafe .hours { width:620px; margin:0; padding:0 0 0 28px; border-top:none; border-left:1px solid rgba(255,255,255,.15); }
+.screen.layout-cafe .hours div { font-size:16px; }
+.screen.layout-cafe .hours div em { font-size:20px; margin-top:2px; }
+.screen.layout-cafe .hours div span { font-size:22px; margin-top:2px; }
+.screen.layout-cafe .hours div small { font-size:17px; margin-top:0; }

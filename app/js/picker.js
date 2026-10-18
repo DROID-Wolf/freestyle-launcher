@@ -5,9 +5,12 @@ import { toggleApp, moveApp, MAX_DOCK } from './dock.js';
 import { tileHtml, escapeHtml } from './icons.js';
 import { THEMES, defaultOptions } from './themes.js';
 import { mediaUrl } from './media.js';
+import { stepDim } from './store.js';
 
 const COLS = 6;
-const TABS = ['apps', 'themes', 'prefs'];
+const TABS = ['themes', 'apps', 'prefs'];
+const TAB_LABELS = { themes: 'Themes', apps: 'Apps', prefs: 'Preferences' };
+const DIM_MAX = 70; // matches store.js
 const thumbUrl = (p) => mediaUrl(p, location.pathname);
 // Card colour shown until (or instead of, if missing) the theme's thumbnail picture.
 const CARD_BG = {
@@ -62,7 +65,7 @@ const scrollToFocus = (el, prevTop = 0) => {
 export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose, findCity, locateMe, root = document.getElementById('screen') }) {
   const el = mount(root, 'pick');
   let tab = 'apps';
-  // 'tabs' | 'slots' (the "Your dock" row, apps tab) | 'cards' / 'opts' (themes tab) | 'body'
+  // 'tabs' | 'slots' (the "Your dock" row, apps tab) | 'cards' / 'opts' / 'dim' (themes tab) | 'body'
   let row = 'body';
   let themeCard = Math.max(0, THEMES.findIndex((t) => t.id === prefs.theme)); // card the option rows belong to
   let optRow = 0; // which option row (themes tab, row 'opts')
@@ -104,7 +107,26 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
     }).join('');
     const hint = t.options.some((o) => o.allowNone) ? ' Select the chosen style again to turn it off.' : '';
     return `<p>Pick a theme. It changes right away; your apps, name and city stay the same.${hint}</p>
-      <div class="tcards">${cards}</div><div class="orows">${rows}</div>`;
+      <div class="tcards">${cards}</div><div class="orows">${rows}${hasDim() ? dimHtml() : ''}</div>`;
+  }
+
+  // "Dim room" slider: darkens the room picture only; the window/fire/tank videos stay as bright.
+  const hasDim = () => cardTheme().id !== 'aurora';
+  function dimHtml() {
+    const pct = prefs.roomDim || 0;
+    return `<div class="orow"><span class="lbl">Dim room</span>
+      <div class="dimbar${row === 'dim' ? ' focus' : ''}">
+        <span class="step" data-dim="-1">◀</span>
+        <span class="track"><span class="fill" style="width:${(pct / DIM_MAX) * 100}%"></span></span>
+        <span class="val">${pct}%</span>
+        <span class="step" data-dim="1">▶</span>
+      </div></div>`;
+  }
+
+  function changeDim(dir) {
+    prefs.roomDim = stepDim(prefs.roomDim || 0, dir);
+    emit();
+    render();
   }
 
   // Enter on a pill: choose it (and switch to its theme); on a clearable row, choosing the
@@ -139,7 +161,7 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
       if (key === 'ArrowLeft') themeCard = Math.max(0, themeCard - 1);
       else if (key === 'ArrowRight') themeCard = Math.min(THEMES.length - 1, themeCard + 1);
       else if (key === 'ArrowUp') return void ((row = 'tabs'), (idx = TABS.indexOf('themes')));
-      else if (key === 'ArrowDown') return void (opts.length ? ((row = 'opts'), (optRow = 0), (idx = optIndex(0))) : ((row = 'body'), (idx = 0)));
+      else if (key === 'ArrowDown') return void (opts.length ? ((row = 'opts'), (optRow = 0), (idx = optIndex(0))) : belowOpts());
       idx = themeCard;
       return;
     }
@@ -148,12 +170,25 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
       if (key === 'ArrowLeft') idx = Math.max(0, idx - 1);
       else if (key === 'ArrowRight') idx = Math.min(n - 1, idx + 1);
       else if (key === 'ArrowUp') optRow > 0 ? ((optRow -= 1), (idx = optIndex(optRow))) : ((row = 'cards'), (idx = themeCard));
-      else if (key === 'ArrowDown') optRow < opts.length - 1 ? ((optRow += 1), (idx = optIndex(optRow))) : ((row = 'body'), (idx = 0));
+      else if (key === 'ArrowDown') optRow < opts.length - 1 ? ((optRow += 1), (idx = optIndex(optRow))) : belowOpts();
+      return;
+    }
+    if (row === 'dim') {
+      if (key === 'ArrowLeft' || key === 'ArrowRight') return changeDim(key === 'ArrowLeft' ? -1 : 1);
+      if (key === 'ArrowUp') aboveDim();
+      else if (key === 'ArrowDown') (row = 'body'), (idx = 0);
       return;
     }
     // Done button
-    if (key === 'ArrowUp') opts.length ? ((row = 'opts'), (optRow = opts.length - 1), (idx = optIndex(optRow))) : ((row = 'cards'), (idx = themeCard));
+    if (key === 'ArrowUp') hasDim() ? ((row = 'dim'), (idx = 0)) : aboveDim();
   }
+  // Below the option rows: the dim slider (scene themes), then Done.
+  const belowOpts = () => (hasDim() ? ((row = 'dim'), (idx = 0)) : ((row = 'body'), (idx = 0)));
+  const aboveDim = () => {
+    const opts = cardTheme().options;
+    if (opts.length) (row = 'opts'), (optRow = opts.length - 1), (idx = optIndex(optRow));
+    else (row = 'cards'), (idx = themeCard);
+  };
 
   function slotMenuHtml() {
     if (row !== 'slots' || slotMenu < 0) return '';
@@ -201,7 +236,7 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
     const prevTop = gridScroll(el);
     el.classList.toggle('see', tab === 'themes'); // let the chosen theme show through
     el.innerHTML = `<h2>Customize</h2>
-      <div class="tabs">${tabBtn('apps', 0, 'Apps')}${tabBtn('themes', 1, 'Themes')}${tabBtn('prefs', 2, 'Preferences')}</div>
+      <div class="tabs">${TABS.map((name, i) => tabBtn(name, i, TAB_LABELS[name])).join('')}</div>
       ${tab === 'apps' ? appsHtml() : tab === 'themes' ? themesHtml() : prefsHtml()}
       <div class="done${isFocus('body', doneIndex())}" data-i="${doneIndex()}">Done</div>`;
     scrollToFocus(el, prevTop);
@@ -270,7 +305,7 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
   }
 
   function activate() {
-    if (row === 'tabs') return;
+    if (row === 'tabs' || row === 'dim') return; // the slider moves with Left/Right
     if (row === 'cards') return chooseTheme(idx);
     if (row === 'opts') return chooseOption(optRow, idx);
     if (row === 'slots') {
@@ -313,7 +348,7 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
     if (tab === 'apps') {
       if (key === 'ArrowUp' && idx < COLS) {
         if (dock.length) (row = 'slots'), (idx = Math.min(idx, dock.length - 1));
-        else (row = 'tabs'), (idx = 0);
+        else (row = 'tabs'), (idx = TABS.indexOf('apps'));
         return;
       }
       idx = navigate({ zone: 'picker', index: idx }, key, { pickerCount: apps.length, pickerCols: COLS }).state.index;
@@ -376,7 +411,7 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
     if (row === 'slots') {
       if (key === 'ArrowLeft') idx = Math.max(0, idx - 1);
       else if (key === 'ArrowRight') idx = Math.min(dock.length - 1, idx + 1);
-      else if (key === 'ArrowUp') (row = 'tabs'), (idx = 0);
+      else if (key === 'ArrowUp') (row = 'tabs'), (idx = TABS.indexOf('apps'));
       else if (key === 'ArrowDown') (row = 'body'), (idx = Math.min(idx, Math.max(0, apps.length - 1)));
       else return false;
       render();
@@ -403,9 +438,14 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
     } else if (e.target.id === 'pfCity') cityDraft = e.target.value;
   });
   el.addEventListener('click', (e) => {
-    const t = e.target.closest('[data-tab],[data-i],[data-slot],[data-act],[data-card],[data-opt]');
+    const t = e.target.closest('[data-tab],[data-i],[data-slot],[data-act],[data-card],[data-opt],[data-dim]');
     if (!t) return;
     if (t.dataset.act) return slotAction(t.dataset.act);
+    if (t.dataset.dim) {
+      row = 'dim';
+      idx = 0;
+      return changeDim(Number(t.dataset.dim));
+    }
     if (t.dataset.card !== undefined) {
       row = 'cards';
       idx = Number(t.dataset.card);
