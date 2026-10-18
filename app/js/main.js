@@ -9,6 +9,7 @@ import { pickBridge } from './bridge.js';
 import { tileHtml, withPictures, hasVisiblePixels } from './icons.js';
 import { openPicker, openAppGrid } from './picker.js';
 import { loadPrefs, savePrefs, loadWeather, saveWeather } from './store.js';
+import { showAppsDebug } from './debug-apps.js'; // TEMPORARY
 
 const WEATHER_EVERY = 15 * 60 * 1000;
 const FETCH_TIMEOUT = 10000;
@@ -189,6 +190,11 @@ function loadApps() {
       return Promise.all(shown.apps.map((a) => (pictured ? pictureShows(a.icon) : true))).then((oks) => {
         const real = shown.apps.filter((a, i) => oks[i]); // drop broken or blank pictures
         apps = real.length ? real : shown.apps;
+        if (window.parent !== window) { // TEMPORARY: device-only debug report (see debug-apps.js)
+          const vis = {};
+          shown.apps.forEach((a, i) => { vis[a.id] = !!oks[i]; });
+          showAppsDebug(all, shown.apps, vis);
+        }
         iconNote = shown.note;
         appsError = '';
         const ids = apps.map((a) => a.id);
