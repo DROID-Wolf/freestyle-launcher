@@ -110,7 +110,9 @@ body { color:#f2f2f4; font-family:Outfit, system-ui, sans-serif; }
 .slots { display:flex; gap:24px; margin-top:36px; align-items:center; }
 .slots .lbl { font-size:22px; color:rgba(255,255,255,.5); letter-spacing:2px; text-transform:uppercase; width:150px; }
 .slot { width:96px; height:96px; border-radius:26px; border:2px dashed rgba(255,255,255,.2); }
-.slots .tile { cursor:default; border:none; }
+.slots .tile { cursor:pointer; border:none; }
+.slots .tile.focus::after { content:"✕"; position:absolute; top:-12px; right:-12px; width:40px; height:40px; border-radius:50%;
+  background:#ff6b6b; color:#fff; font-size:22px; display:flex; align-items:center; justify-content:center; }
 .slots .tile .tip { display:none; }
 /* the grid only ever scrolls vertically (picker.js sets scrollTop); names stay on one line */
 .gridwrap { position:relative; margin-top:44px; max-width:1300px; height:520px; overflow:hidden; padding:16px 12px; }
@@ -138,6 +140,11 @@ body { color:#f2f2f4; font-family:Outfit, system-ui, sans-serif; }
 .field input.focus { border-color:#fff; transform:scale(1.03); }
 .btn { white-space:nowrap; font-size:26px; padding:14px 34px; border-radius:999px; background:rgba(255,255,255,.12); cursor:pointer; transition:transform .2s; }
 .btn.focus { background:#fff; color:#111; transform:scale(1.08); }
+.btn.icon { position:relative; padding:12px 18px; display:flex; align-items:center; }
+.btn.icon svg { width:32px; height:32px; fill:none; stroke:currentColor; stroke-width:2; }
+.tip3 { position:absolute; top:64px; left:50%; transform:translateX(-50%); font-size:20px; white-space:nowrap; color:#fff;
+  background:rgba(0,0,0,.7); padding:6px 12px; border-radius:10px; opacity:0; transition:opacity .2s; pointer-events:none; }
+.btn.icon.focus .tip3 { opacity:1; }
 .status { font-size:22px; color:rgba(255,255,255,.55); }
 .toggle { display:flex; align-items:center; gap:20px; cursor:pointer; padding:8px 14px; margin-left:-14px; border-radius:18px; transition:transform .2s; }
 .toggle .sw { width:76px; height:42px; border-radius:21px; background:rgba(255,255,255,.18); position:relative; transition:background .2s; flex:none; }

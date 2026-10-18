@@ -3,6 +3,19 @@
 // 'picker' (overlay grid; index === layout.pickerCount is the Done button).
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 
+// ok(key, nowMs) is true at most once per `ms` for each key. One remote press can arrive twice
+// (key repeat, or Enter also firing a click), and launching an app twice means Back just
+// reveals the second copy.
+export function createCooldown(ms) {
+  const last = new Map();
+  return (key, now) => {
+    const prev = last.get(key);
+    if (prev !== undefined && now - prev < ms) return false;
+    last.set(key, now);
+    return true;
+  };
+}
+
 export function navigate(state, key, layout) {
   const { zone, index } = state;
   const same = { state, action: 'none' };

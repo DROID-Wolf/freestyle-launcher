@@ -8,6 +8,7 @@ const COLS = 6;
 // Preferences rows by index; city, find and locate share one line (Left/Right move between them).
 const PREF_ROWS = ['name', 'city', 'find', 'locate', 'hour24', 'reduceMotion', 'done'];
 const CITY_LINE = [1, 2, 3];
+const PIN_SVG = '<svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>';
 const appsMsg = (note) => `<div class="msg">${escapeHtml(note || "Couldn't load the installed apps.")}</div>`;
 
 const mount = (root, cls) => {
@@ -40,7 +41,7 @@ const scrollToFocus = (el, prevTop = 0) => {
 export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose, findCity, locateMe, root = document.getElementById('screen') }) {
   const el = mount(root, 'pick');
   let tab = 'apps';
-  let row = 'body'; // 'tabs' | 'body'
+  let row = 'body'; // 'tabs' | 'slots' (the "Your dock" row, apps tab) | 'body'
   let idx = 0;
   let status = '';
   let fullTimer = 0;
@@ -59,7 +60,8 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
     const slots = [];
     for (let i = 0; i < MAX_DOCK; i++) {
       const a = byId.get(dock[i]);
-      slots.push(a ? tileHtml(a, 'slot') : '<div class="slot"></div>');
+      // a filled slot can be focused/clicked to remove that app from the dock
+      slots.push(a ? tileHtml(a, `slot${isFocus('slots', i)}`).replace('<div ', `<div data-slot="${i}" `) : '<div class="slot"></div>');
     }
     const grid = apps.map((a, i) => {
       const n = dock.indexOf(a.id);
@@ -67,7 +69,7 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
       const tile = tileHtml(a, isFocus('body', i).trim()).replace(/<\/div>$/, `${badge}</div>`);
       return `<div class="gapp${n >= 0 ? ' sel' : ''}" data-i="${i}">${tile}<span class="nm">${escapeHtml(a.name)}</span></div>`;
     }).join('');
-    return `<p>Select up to ${MAX_DOCK} apps. They appear in the dock in the order you pick them. Select one again to remove it.</p>
+    return `<p>Select up to ${MAX_DOCK} apps. They appear in the dock in the order you pick them. Select one again, or select it in Your dock, to remove it.</p>
       <div class="slots"><span class="lbl">Your dock</span>${slots.join('')}</div>
       ${apps.length ? `${appsNote ? appsMsg(appsNote) : ''}<div class="gridwrap"><div class="grid">${grid}</div></div>` : appsMsg(appsNote)}
       <div class="full">Dock is full. Remove an app first.</div>`;
@@ -81,7 +83,7 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
         <div class="field"><label>Name</label><input id="pfName" data-i="0" class="${isFocus('body', 0)}" value="${escapeHtml(prefs.name)}" maxlength="30"></div>
         <div class="field"><label>City</label><input id="pfCity" data-i="1" class="${isFocus('body', 1)}" value="${escapeHtml(cityDraft)}" maxlength="60">
           <div class="btn${isFocus('body', 2)}" data-i="2">Find</div>
-          <div class="btn${isFocus('body', 3)}" data-i="3">Use current location</div></div>
+          <div class="btn icon${isFocus('body', 3)}" data-i="3" title="Use current location">${PIN_SVG}<span class="tip3">Use current location</span></div></div>
         <div class="field"><label></label><span class="status">${escapeHtml(status)}</span></div>
         <div class="field"><label>Clock</label>${toggle('hour24', 4, '24-hour time')}</div>
         <div class="field"><label>Motion</label>${toggle('reduceMotion', 5, 'Reduce motion')}</div>
@@ -138,8 +140,19 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
     setLocation(locateMe, 'Finding your location…', (name) => `Using ${name} (approximate, from your internet connection)`,
       'Couldn\'t work out your location. Type your city instead.');
 
+  // Remove the focused "Your dock" app; stay in the row while it has apps.
+  function removeSlot() {
+    if (!dock[idx]) return;
+    dock = dock.filter((_, i) => i !== idx);
+    emit();
+    if (dock.length) idx = Math.min(idx, dock.length - 1);
+    else (row = 'body'), (idx = 0);
+    render();
+  }
+
   function activate() {
     if (row === 'tabs') return;
+    if (row === 'slots') return removeSlot();
     if (idx === doneIndex()) return close();
     if (tab === 'apps') {
       const r = toggleApp(dock, apps[idx].id);
@@ -172,7 +185,11 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
 
   function moveBody(key) {
     if (tab === 'apps') {
-      if (key === 'ArrowUp' && idx < COLS) return void ((row = 'tabs'), (idx = 0));
+      if (key === 'ArrowUp' && idx < COLS) {
+        if (dock.length) (row = 'slots'), (idx = Math.min(idx, dock.length - 1));
+        else (row = 'tabs'), (idx = 0);
+        return;
+      }
       idx = navigate({ zone: 'picker', index: idx }, key, { pickerCount: apps.length, pickerCols: COLS }).state.index;
       return;
     }
@@ -210,7 +227,16 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
     if (row === 'tabs') {
       if (key === 'ArrowLeft') switchTab('apps'), (idx = 0);
       else if (key === 'ArrowRight') switchTab('prefs'), (idx = 1);
-      else if (key === 'ArrowDown') (row = 'body'), (idx = 0);
+      else if (key === 'ArrowDown') (row = tab === 'apps' && dock.length ? 'slots' : 'body'), (idx = 0);
+      else return false;
+      render();
+      return true;
+    }
+    if (row === 'slots') {
+      if (key === 'ArrowLeft') idx = Math.max(0, idx - 1);
+      else if (key === 'ArrowRight') idx = Math.min(dock.length - 1, idx + 1);
+      else if (key === 'ArrowUp') (row = 'tabs'), (idx = 0);
+      else if (key === 'ArrowDown') (row = 'body'), (idx = Math.min(idx, Math.max(0, apps.length - 1)));
       else return false;
       render();
       return true;
@@ -236,8 +262,13 @@ export function openPicker({ apps, appsNote = '', dock, prefs, onChange, onClose
     } else if (e.target.id === 'pfCity') cityDraft = e.target.value;
   });
   el.addEventListener('click', (e) => {
-    const t = e.target.closest('[data-tab],[data-i]');
+    const t = e.target.closest('[data-tab],[data-i],[data-slot]');
     if (!t) return;
+    if (t.dataset.slot !== undefined) {
+      row = 'slots';
+      idx = Number(t.dataset.slot);
+      return removeSlot();
+    }
     if (t.dataset.tab) {
       row = 'tabs';
       idx = t.dataset.tab === 'apps' ? 0 : 1;

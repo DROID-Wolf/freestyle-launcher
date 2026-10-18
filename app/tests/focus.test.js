@@ -1,6 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { navigate } from '../js/focus.js';
+import { navigate, createCooldown } from '../js/focus.js';
+
+test('cooldown lets an action through once per window (stops double launches)', () => {
+  const ok = createCooldown(2000);
+  assert.equal(ok('network', 1000), true);
+  assert.equal(ok('network', 1500), false); // the same press arriving twice
+  assert.equal(ok('settings', 1600), true); // a different action isn't blocked
+  assert.equal(ok('network', 3100), true); // window passed
+});
 
 const L = { dockCount: 6, pickerCount: 12, pickerCols: 6 };
 const nav = (zone, index, key) => navigate({ zone, index }, key, L);

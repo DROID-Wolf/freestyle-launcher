@@ -2,7 +2,7 @@
 import { formatTime, formatDate, greeting, dayProgress } from './time.js';
 import { themeFor } from './theme.js';
 import { loadDock, saveDock, pruneDock } from './dock.js';
-import { navigate } from './focus.js';
+import { navigate, createCooldown } from './focus.js';
 import { forecastUrl, geocodeUrl, parseForecast, parseGeocode, weatherView, IP_LOCATION_URL, parseIpLocation } from './weather.js';
 import { tickerText } from './ticker.js';
 import { pickBridge } from './bridge.js';
@@ -17,6 +17,7 @@ const DAY_ICON = { clear: '☀', partly: '⛅', cloudy: '☁', fog: '🌫', rain
 const DROPS = { rain: '💧💧', snow: '❄❄', storm: '⚡' };
 const NAV_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Escape'];
 const TIZEN_BACK = 10009;
+const LAUNCH_COOLDOWN = 2000; // ms: one press must never open the same thing twice
 
 const $ = (id) => document.getElementById(id);
 const screen = $('screen');
@@ -239,15 +240,19 @@ function toast(msg) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
 }
 
+const launchOk = createCooldown(LAUNCH_COOLDOWN);
+
 function launch(app) {
+  if (!launchOk(`app:${app.id}`, Date.now())) return;
   bridge.launch(app.id).catch(() => toast(`Couldn't open ${app.name}`));
 }
 
 function activate() {
   if (focus.zone === 'top') {
     if (focus.index === 0) openCustomize();
-    else if (focus.index === 1) bridge.openNetwork().catch(() => toast("Couldn't open network settings"));
-    else bridge.openSettings().catch(() => toast("Couldn't open Settings"));
+    else if (focus.index === 1) {
+      if (launchOk('network', Date.now())) bridge.openNetwork().catch(() => toast("Couldn't open network settings"));
+    } else if (launchOk('settings', Date.now())) bridge.openSettings().catch(() => toast("Couldn't open Settings"));
     return;
   }
   if (focus.index < dock.length) launch(appById(dock[focus.index]));
@@ -317,7 +322,9 @@ function handleKey(key) {
 
 document.addEventListener('keydown', (e) => {
   const key = e.keyCode === TIZEN_BACK ? 'Escape' : NAV_KEYS.indexOf(e.key) >= 0 ? e.key : null;
-  if (key && handleKey(key)) e.preventDefault();
+  if (!key) return;
+  if (e.repeat && (key === 'Enter' || key === 'Escape')) return e.preventDefault(); // held button: act once
+  if (handleKey(key)) e.preventDefault();
 });
 
 // The shell forwards the remote's Back key as {fl:1, key:'Escape'} (bridge replies carry an id).
